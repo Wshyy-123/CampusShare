@@ -11,4 +11,6 @@ public class Reservation {
     private LocalDateTime acceptedAt;
     private String status;
     private LocalDateTime checkInAt;
+    private LocalDateTime startAt; // 预约开始时间
+    private LocalDateTime endAt;   // 预约结束时间
 }

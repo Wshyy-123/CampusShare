@@ -16,4 +16,10 @@ public class CheckInController {
     public String checkIn(@RequestParam Long userId) {
         return checkInService.swipeCard(userId);
     }
+
+    // 模拟用户主动取消预约
+    @PostMapping("/cancel")
+    public String cancel(@RequestParam Long id) {
+        return checkInService.cancelReservation(id);
+    }
 }
