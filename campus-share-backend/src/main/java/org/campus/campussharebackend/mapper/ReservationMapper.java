@@ -6,6 +6,8 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 import org.campus.campussharebackend.entity.Reservation;
 
+import java.util.List;
+
 @Mapper
 public interface ReservationMapper {
 
@@ -24,4 +26,8 @@ public interface ReservationMapper {
     // 取消预约并记录原因
     @Update("UPDATE reservation SET status = 'CANCELLED', cancel_reason = #{reason}, updated_at = NOW() WHERE id = #{id}")
     void cancelReservationWithReason(@Param("id") Long id, @Param("reason") String reason);
+
+    // 查询所有超时未签到（开始时间距今超过15分钟）且状态为 RESERVED 的预约
+    @Select("SELECT * FROM reservation WHERE status = 'RESERVED' AND start_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)")
+    List<Reservation> findTimeoutReservations();
 }
