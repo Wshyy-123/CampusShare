@@ -42,7 +42,7 @@
 
 本次代码分工完成，不将它标记为整组产品DoD全部通过：
 
-- 团队基线 MySQL 8.4 尚未在本机执行。已提供仅覆盖本模块的 GitHub Actions MySQL 8.4 测试；其结果以真实远端执行为准。
+- 团队基线 MySQL 8.4 已在 GitHub Actions 中执行并通过，18个测试全部成功：[运行记录](https://github.com/Wshyy-123/CampusShare/actions/runs/41323958473)。本机仍使用已有 MySQL 8.0.12，未升级或修改小皮环境。
 - 仓库暂无其他成员的后端入口。已提供 ResourceAvailabilityGuard 和到馆共用期限规则；创建预约、刷卡等入口需对应负责人合并调用，不能只检查前端。
 - 登录、CSRF、完整会话流程未由本模块实现或联调。测试模拟已认证SecurityContext；未声称完成真实登录验证。
 - 未执行真实手机验收或其他成员评审。没有开发其他故事、前端或整个共享工程，也没有合并main。
