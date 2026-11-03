@@ -13,3 +13,14 @@ mybatis:
   mapper-locations: classpath:mapper/*.xml
   configuration:
     map-underscore-to-camel-case: true
+
+app:
+  security:
+    # 登录（XIA-1）落地前的临时调试身份，默认关闭；本地联调用 dev profile 打开
+    dev-identity-enabled: false
+  sports:
+    # 可签到窗口：[start - early, start + grace)，单位分钟；口径见 docs/api/sports-attendance.yaml
+    check-in-early-minutes: 0
+    check-in-grace-minutes: 15
+    # 体育未到扫描间隔，10 秒一次便于演示
+    no-show-cron: "0/10 * * * * ?"

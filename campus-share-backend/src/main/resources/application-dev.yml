@@ -1,0 +1,7 @@
+# 本地联调专用配置：以 --spring.profiles.active=dev 启动
+#
+# app.security.dev-identity-enabled 打开后，请求头 X-Debug-User-Id 会被当作当前用户。
+# 这是登录（XIA-1）落地前的临时手段，不得用于演示以外的环境，XIA-1 完成后删除。
+app:
+  security:
+    dev-identity-enabled: true
