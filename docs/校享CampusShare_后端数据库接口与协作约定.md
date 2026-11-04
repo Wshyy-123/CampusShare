@@ -1,8 +1,8 @@
 # 校享 CampusShare 后端、数据库、接口与开工协作约定
 
-版本：V1.1｜日期：2026-10-27｜适用对象：全体成员，重点供后端开发及前后端联调使用。
+版本：V1.2｜日期：2026-11-04｜适用对象：全体成员，重点供后端开发及前后端联调使用。
 
-本文件与《校享CampusShare_前端开发约定.md》配套，提供后端工程、数据库、登录、接口、联调与开发协作的统一方案。业务规则以产品范围和对应PingCode工作项的验收标准为准。
+本文件与《校享CampusShare_前端开发约定.md》配套，提供后端工程、数据库、登录、接口、联调与开发协作的统一方案。业务统一按[项目背景与业务规则](校享CampusShare_项目背景与业务规则.md)实现，对应PingCode工作项同步本次变化后验收；模块调整见[开发同步说明](校享CampusShare_开发同步说明_2026-11-04.md)。文档要求不代表功能已接入或完成。
 
 ## 一、方案总览
 
@@ -28,10 +28,10 @@ Spring Security、Spring Framework、MySQL驱动等由Spring Boot依赖管理统
 
 ### 1. 工程组织
 
-根包使用com.campusshare，前后端放在同一个GitHub仓库的frontend/和backend/目录，说明和接口放docs/。
+同一个GitHub仓库内，前端为frontend/，当前主后端为campus-share-backend/，说明与接口在docs/。在现有主工程扩展，不为教室、图书馆、体育分别创建独立生产后端。独立库模块接入时显式统一依赖和包扫描，不因包名不同而遗漏服务或任务。下面为主后端业务分包结构，保留com.campusshare作为模块组织示意，不要求本次重命名已有org.campus包。
 
 ```text
-backend/
+campus-share-backend/
   pom.xml
   mvnw / mvnw.cmd / .mvn/
   src/main/java/com/campusshare/
@@ -41,9 +41,9 @@ backend/
     user/             用户与角色
     resource/         资源、开放和占用安排
     reservation/      预约及状态变更
-    attendance/       扫码、刷卡确认与签退
+    attendance/       地点扫码、刷卡入场/离场与签退
     violation/        违规记录
-    job/              后台超时检查
+    job/              未到取消与正常结束后台任务
   src/main/resources/
     mapper/           MyBatis XML
     application.yml   共享非敏感配置
@@ -83,9 +83,9 @@ docs/
 | 表 | 职责 | 关键字段 |
 |---|---|---|
 | app_user | 登录账号和角色 | id、account、password_hash、display_name、role、enabled |
-| resource | 一个最小可预约单位 | id、name、location、resource_type、unit_label、enabled |
+| resource | 一个最小可预约单位及对应地点 | id、name、location、resource_type、unit_label、enabled；稳定资源标识供地点码绑定 |
 | resource_opening | 允许预约的开放安排 | id、resource_id、start_at、end_at |
-| resource_block | 教学占用和停用等不可约安排 | id、resource_id、block_type、start_at、end_at、reason |
+| resource_block | 模拟教务/体育占用和停用等不可约安排 | id、resource_id、block_type、start_at、end_at、reason；保留来源，区别于系统预约 |
 | reservation | 本人预约及当前状态 | id、user_id、resource_id、client_request_id、start_at、end_at、accepted_at、arrival_deadline、status、cancel_reason、check_in_at、check_out_at、created_at、updated_at |
 | reservation_event | 预约操作与处理历史 | id、reservation_id、event_type、operator_id、occurred_at、request_id、reason |
 | violation_record | 违规记录 | id、reservation_id、user_id、violation_type、occurred_at |
@@ -94,7 +94,7 @@ resource一行对应一张桌、一块场、一张座位或一整间房。资源
 
 resource_type使用TABLE_TENNIS、BADMINTON、TENNIS、LIBRARY_SEAT、DISCUSSION_ROOM、CLASSROOM；role使用STUDENT、TEACHER、RESOURCE_ADMIN。前后端共用同一份编码字典。
 
-开放安排按具体日期时段维护，教学占用使用resource_block记录。
+开放安排按具体日期时段维护；模拟教务教学、体育外部占用及停用通过resource_block表达，并在数据字典/脚本保留占用来源。系统预约独立保存在reservation，查询与创建均合并检查。模拟数据固定可复现，不在查询时随机生成。
 
 ### 3. 字段、索引与时间
 
@@ -104,7 +104,8 @@ resource_type使用TABLE_TENNIS、BADMINTON、TENNIS、LIBRARY_SEAT、DISCUSSION
 - 违规记录对reservation_id、violation_type设唯一约束，防止后台重跑重复记同类违规。
 - 示例数据、脚本、Java时间处理和对外接口统一使用Asia/Shanghai业务口径。采用DATETIME(3)保存业务本地时间，所有外部带偏移时间先由服务端转换至同一口径；时间字段含义写入数据字典。
 - accepted_at表示服务端确认预约成功的计时基准，不取客户端时间；回滚的预约不成为有效记录。
-- 座位arrival_deadline从accepted_at起算30分钟；体育从预约start_at起算15分钟。
+- 座位arrival_deadline从accepted_at起算30分钟；教室和体育从start_at起算15分钟。正常结束使用end_at，不能与未到期限混用。
+- 地点码绑定具体resource_id，签到历史关联预约、账户、资源、服务端时间和扫码来源；刷卡入场与离场为不同事件，check_out_at保存实际离场时间。正常结束事件与未到取消分别记录，不伪造实际扫码或刷卡离场。
 - 教学、停用、预约的历史保留，不通过删除历史记录实现释放。
 
 ### 4. 预约状态
@@ -116,7 +117,7 @@ resource_type使用TABLE_TENNIS、BADMINTON、TENNIS、LIBRARY_SEAT、DISCUSSION
 | COMPLETED | 已按明确的结束规则完成 | 不继续形成有效占用，保留历史 |
 | CANCELLED | 主动取消、未到处理或停用导致失效 | 解除该预约占用，记录具体原因 |
 
-失效原因使用USER_CANCEL、NO_SHOW、RESOURCE_DISABLED编码。状态变化保存操作时间、操作者和原因，历史记录可追溯。
+图书馆已到馆后刷卡离场转COMPLETED并立即释放；教室/体育已签到且到end_at转COMPLETED。未到及其他取消转CANCELLED。正常完成不写NO_SHOW违规，自动到期不能伪造用户实际签退。失效原因使用USER_CANCEL、NO_SHOW、RESOURCE_DISABLED编码。状态变化保存操作时间、操作者和原因，历史记录可追溯。
 
 ## 四、并发、事务与后台处理
 
@@ -151,6 +152,18 @@ resource_type使用TABLE_TENNIS、BADMINTON、TENNIS、LIBRARY_SEAT、DISCUSSION
 - 启动或任务恢复后检查遗漏的到期预约；任务异常有日志，不能因为用户关闭页面就停止释放。
 - 自动取消、释放和违规记录作为一项一致操作处理，任一步失败按事务回滚或可追踪的补偿策略处理，不留下半完成状态。
 
+### 4. 三类后台处理与离场
+
+| 处理 | 选择条件与结果 |
+|---|---|
+| 座位未到 | LIBRARY_SEAT，预约成功起30分钟且仍未到馆：取消、释放、违规和历史一致提交 |
+| 教室/体育未到 | CLASSROOM或体育资源，开始起15分钟且仍未签到：取消并释放；体育记原未到违规，教室不新增处罚 |
+| 教室/体育结束 | 已签到且到end_at：完成并释放，保存正常结束历史，不记未到违规，不依赖前端或签退 |
+
+图书馆模拟刷卡离场由明确离场事件触发，验证本人已到馆预约后立即完成释放。不能把重复入场当离场，不能借离场接口取消尚未到馆座位预约。重复完成/取消均不能影响后续预约。
+
+后台按类型、状态和各自基准时间复核，不把全部RESERVED统一当体育未到。预约已结束时不能再签到；对于使用时长短于未到宽限期的预约，在接口契约/测试中明确其结束处理，不能产生结束后可签到或继续占用。
+
 ## 五、登录和权限
 
 ### 1. 认证方式
@@ -179,7 +192,7 @@ resource_type使用TABLE_TENNIS、BADMINTON、TENNIS、LIBRARY_SEAT、DISCUSSION
 |---|---|---|
 | 查询资源和时段 | 查询可预约资源 | 按管理权限访问 |
 | 创建与查询个人预约 | 操作本人数据 | 按管理权限访问预约记录 |
-| 体育取消、签到、签退 | 操作本人有权处理的预约 | 不默认可替任意用户签到 |
+| 教室/体育签到、体育取消与签退、图书馆模拟入场/离场 | 按资源规则操作本人有权处理的预约 | 不默认可替任意用户签到或离场 |
 | 资源、开放和教学占用维护 | 拒绝管理操作 | 按实际管理权限处理 |
 | 资源停用 | 拒绝 | 按实际管理权限处理 |
 
@@ -211,7 +224,7 @@ resource_type使用TABLE_TENNIS、BADMINTON、TENNIS、LIBRARY_SEAT、DISCUSSION
 | GET | /reservations/mine | 我的预约，XIA-6 |
 | GET | /reservations/{reservationId} | 有权限的预约详情，XIA-6 |
 | POST | /reservations/{reservationId}/cancel | 体育预约取消，XIA-7 |
-| POST | /reservations/{reservationId}/check-in | 体育扫码确认，XIA-8 |
+| POST | /reservations/{reservationId}/check-in | 教室/体育地点扫码确认，扩展原XIA-8入口 |
 | POST | /reservations/{reservationId}/check-out | 体育扫码签退，XIA-8 |
 | POST | /admin/resources | 新增资源，XIA-2 |
 | PUT | /admin/resources/{resourceId} | 修改允许维护的资源信息，XIA-2 |
@@ -219,9 +232,9 @@ resource_type使用TABLE_TENNIS、BADMINTON、TENNIS、LIBRARY_SEAT、DISCUSSION
 | POST | /admin/resources/{resourceId}/teaching-blocks | 维护教学占用，XIA-3 |
 | POST | /admin/resources/{resourceId}/disable-periods | 按明确范围停用并处理受影响预约，XIA-14 |
 
-上表列出主要业务入口。查询及维护接口的参数、返回字段、权限和错误例子一并记录在docs/api/。
+上表列出主要业务入口。地点码生成/解析、教务与体育模拟占用、图书馆入场/离场在docs/api/补齐对应契约后实现；明确资源标识、事件类型、身份、时间和错误结果，不由不同成员各自定义重复路径。签到请求携带地点识别凭据，用户身份从服务端会话读取。
 
-XIA-9、XIA-11的自动处理在后台执行，不设置一个必须由前端点击才释放的业务接口。测试可调整受控测试数据与时间条件验证，不能把测试入口无条件开放给普通用户。
+XIA-9、XIA-11、教室未到与教室/体育正常结束的自动处理在后台执行，不设置一个必须由前端点击才释放的业务接口。测试可调整受控测试数据与时间条件验证，不能把测试入口无条件开放给普通用户。
 
 ### 3. 创建预约示例
 
@@ -285,7 +298,7 @@ XIA-9、XIA-11的自动处理在后台执行，不设置一个必须由前端点
 
 ### 扫码与模拟刷卡
 
-体育签到、签退使用手机真实扫码，图书馆到馆通过模拟刷卡事件验证。模拟事件关联演示用户和对应预约，由后端执行身份、状态与时间校验。
+教室和体育使用手机扫描对应具体资源码，图书馆使用明确的模拟入场/离场事件。扫码识别地点后可自动发起POST，未登录先登录并返回原地点。事件关联当前已认证账户及本人预约，不使用固定userId代替身份。后端检查资源、时间、状态、停用和归属后写入结果；重复扫描/事件幂等，不能自动切换成签退。
 
 二维码携带资源或入口标识，最终由后端结合当前用户、有效预约、资源与时间判断。识别二维码或打开页面不直接等于签到成功；签到和签退采用明确写请求，展示接口处理结果。
 
@@ -296,16 +309,18 @@ XIA-9、XIA-11的自动处理在后台执行，不设置一个必须由前端点
 - 学生、教师使用平台查询和预约，当前预约流程无审批。
 - 同一排他资源的重叠时段只能存在一个有效预约，教学占用时段不可预约。
 - 座位预约成功后30分钟内通过刷卡确认到馆；不允许用户主动取消；超时未到自动释放并记录违规。
-- 体育场地使用前可取消；到馆扫码签到，预约开始后15分钟未签到自动取消、释放并记录违规；使用结束扫码签退。
+- 体育场地使用前可取消；本人扫地点码签到，开始后15分钟未到取消、释放并记录违规；正常结束自动完成释放，不以原扫码签退为前提。
+- 教室模拟教务占用与系统预约共同判断；本人扫地点码签到，开始后15分钟未到取消释放，正常结束自动完成释放。
+- 图书馆模拟刷卡离场立即完成并释放，明确区别于禁止的主动取消。
 - 取消、超时释放保留历史记录，后台处理不依赖用户打开或刷新页面。
 - 违规保留记录，不增加扣分、罚款或禁约处理。
-- 首轮优先处理XIA-1至XIA-11及XIA-14，讨论室和教室专项故事XIA-12、XIA-13放在后续范围。
+- 原XIA-1至XIA-11及XIA-14为此前首轮意向；教室相关新增流程按本次业务规则拆分估算，不能再将教室整类排除。讨论室仍按原业务推进。
 
 ## 九、Sprint计划、分工与完成标准
 
 ### 1. 本轮范围与计划方式
 
-PO提出先做XIA-1至XIA-11及XIA-14共12条最高优先级故事。这个方向继续保留，开发人员估算后决定实际可完成工作，不用优先级代替容量判断。
+原12条最高优先级故事作为已有计划记录保留。本次增加/细化教室、离场、地点码和正常结束任务，PO同步工作项，开发人员重新拆分估算并选择可完成范围，不用文档更新或优先级代替容量判断。
 
 Sprint计划记录目标、时间、故事、任务及负责人。体育和座位的估算分别包含到馆、取消、超时、违规记录与真实联调工作。
 
@@ -340,7 +355,10 @@ Sprint内按完成标准记录实际进度，完成代码编写后继续完成�
 | 用户关闭页面 | 后台仍按规则处理超时 |
 | 重复提交、迟到扫码/刷卡 | 不重复建预约、不恢复已失效占用 |
 | 普通用户请求他人预约或管理接口 | 服务端拒绝无权限操作，不泄露个人记录 |
-| 15/30分钟到馆期限 | 页面、接口与后台使用相同的计时基准和判断逻辑 |
+| 15/30分钟到馆期限 | 座位从成功起30分钟，教室/体育从开始起15分钟，页面/接口/后台一致 |
+| 教室/体育正常结束 | 到end_at完成释放，不依赖签退、不写未到违规 |
+| 图书馆刷卡离场 | 入场后离场立即完成释放，重复事件不影响新预约 |
+| 地点码和模拟占用 | 本人正确地点可签到，错误地点/身份拒绝；查询与提交都检查模拟占用 |
 
 执行验证时保留输入条件、实际结果和发现的问题。
 
@@ -366,4 +384,3 @@ Sprint内按完成标准记录实际进度，完成代码编写后继续完成�
 - [Spring Security 6.5会话管理](https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/session-management.html)、[密码存储](https://docs.spring.io/spring-security/reference/6.5/features/authentication/password-storage.html)、[CSRF防护](https://docs.spring.io/spring-security/reference/6.5/servlet/exploits/csrf.html)：用于认证方案与SPA联调要求。
 - [MySQL 8.4锁定读](https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html)：用于事务与锁顺序说明。
 - [浏览器摄像头接口说明](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia)：用于网页内扫码的环境要求。
-
