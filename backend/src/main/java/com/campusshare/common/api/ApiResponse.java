@@ -1,0 +1,20 @@
+package com.campusshare.common.api;
+
+public record ApiResponse<T>(String code, String message, T data) {
+
+    public static <T> ApiResponse<T> success(T data) {
+        return new ApiResponse<>("OK", "成功", data);
+    }
+
+    public static ApiResponse<Void> success() {
+        return new ApiResponse<>("OK", "成功", null);
+    }
+
+    public static <T> ApiResponse<T> failure(String code, String message, T data) {
+        return new ApiResponse<>(code, message, data);
+    }
+
+    public static ApiResponse<Void> failure(String code, String message) {
+        return new ApiResponse<>(code, message, null);
+    }
+}
