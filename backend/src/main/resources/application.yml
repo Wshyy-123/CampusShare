@@ -1,0 +1,27 @@
+server:
+  port: ${CAMPUSSHARE_PORT:8081}
+  error:
+    include-message: never
+
+spring:
+  application:
+    name: campusshare
+  datasource:
+    url: ${CAMPUSSHARE_DB_URL:jdbc:mysql://127.0.0.1:3306/campusshare?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    username: ${CAMPUSSHARE_DB_USERNAME:root}
+    password: ${CAMPUSSHARE_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jackson:
+    time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+campusshare:
+  seat-no-show:
+    # XIA-11 的定时任务不在本分支范围内，默认关闭；合并该模块后可打开。
+    enabled: false

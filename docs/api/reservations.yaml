@@ -1,0 +1,316 @@
+openapi: 3.0.3
+info:
+  title: CampusShare XIA-5 / XIA-6 预约接口
+  version: 0.1.0
+  description: |
+    创建预约（XIA-5）、本人预约列表与详情（XIA-6）。
+    所有时间按 Asia/Shanghai 解释，对外使用带偏移的 ISO 8601；业务 ID 以字符串返回。
+    身份由服务端会话识别，请求不传 userId。写请求需要携带 GET /api/v1/auth/csrf 返回的 CSRF 请求头。
+servers:
+  - url: /api/v1
+security:
+  - sessionCookie: []
+paths:
+  /reservations:
+    post:
+      operationId: createReservation
+      summary: 创建预约（XIA-5）
+      description: |
+        服务端在同一事务内锁定资源行，重新检查资源启用、重叠阻塞安排、开放安排和有效预约冲突，
+        然后写入 RESERVED 预约和 reservation_event。相同 clientRequestId 且参数一致时返回原预约；
+        参数不一致返回 409 IDEMPOTENCY_CONFLICT。新建返回 201，幂等重放返回 200。
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReservationRequest'
+            example:
+              resourceId: '101'
+              startTime: '2026-11-03T09:00:00+08:00'
+              endTime: '2026-11-03T10:00:00+08:00'
+              clientRequestId: '8f0d6b4a-4d1e-4d7a-9d5e-2f6b8c1a3e10'
+      responses:
+        '201':
+          description: 新建预约成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationResponse'
+              example:
+                code: OK
+                message: 预约成功
+                data:
+                  reservationId: '1001'
+                  resourceId: '101'
+                  resourceName: 图书馆A区01座
+                  resourceType: LIBRARY_SEAT
+                  location: 图书馆一楼
+                  unitLabel: A-01
+                  startTime: '2026-11-03T09:00:00+08:00'
+                  endTime: '2026-11-03T10:00:00+08:00'
+                  status: RESERVED
+                  acceptedAt: '2026-11-02T10:00:00.123+08:00'
+                  arrivalDeadline: '2026-11-02T10:30:00.123+08:00'
+                  checkInAt: null
+                  checkOutAt: null
+                  cancelReason: null
+                  createdAt: '2026-11-02T10:00:00.123+08:00'
+                requestId: example-trace-001
+        '200':
+          description: 相同 clientRequestId 且参数一致的幂等重放，返回原预约
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationResponse'
+        '400':
+          description: 参数缺失、resourceId 不合法、时间格式错误或开始时间不早于结束时间（INVALID_ARGUMENT）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: 未登录或会话失效（AUTH_REQUIRED）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: CSRF 校验失败（CSRF_INVALID）或无权限（FORBIDDEN）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: |
+            RESERVATION_CONFLICT：同资源重叠时段已有有效预约；
+            RESOURCE_UNAVAILABLE：资源停用、教学占用或不在开放安排内；
+            IDEMPOTENCY_CONFLICT：同一 clientRequestId 对应了不同参数。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: 系统异常（INTERNAL_ERROR），保留 requestId 便于定位
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /reservations/mine:
+    get:
+      operationId: listMyReservations
+      summary: 我的预约（XIA-6）
+      description: 仅返回当前登录用户的预约；按开始时间倒序。分页 page 从 1 开始，size 默认 20、上限 100。
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [RESERVED, CHECKED_IN, COMPLETED, CANCELLED]
+          description: 可选状态过滤
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: 可选，筛选开始时间不早于该时刻（含）
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: 可选，筛选开始时间早于该时刻（不含）
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 本人预约分页结果；无记录时 items 为空
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationPageResponse'
+              example:
+                code: OK
+                message: OK
+                data:
+                  items:
+                    - reservationId: '1001'
+                      resourceId: '101'
+                      resourceName: 图书馆A区01座
+                      resourceType: LIBRARY_SEAT
+                      location: 图书馆一楼
+                      unitLabel: A-01
+                      startTime: '2026-11-03T09:00:00+08:00'
+                      endTime: '2026-11-03T10:00:00+08:00'
+                      status: CANCELLED
+                      acceptedAt: '2026-11-02T10:00:00.123+08:00'
+                      arrivalDeadline: '2026-11-02T10:30:00.123+08:00'
+                      checkInAt: null
+                      checkOutAt: null
+                      cancelReason: NO_SHOW
+                      createdAt: '2026-11-02T10:00:00.123+08:00'
+                  total: 1
+                  page: 1
+                  size: 20
+                requestId: example-trace-002
+        '400':
+          description: status/page/size/时间筛选不合法（INVALID_ARGUMENT）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: 未登录或会话失效（AUTH_REQUIRED）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /reservations/{reservationId}:
+    get:
+      operationId: getMyReservation
+      summary: 预约详情（XIA-6）
+      description: |
+        只返回本人预约。记录不存在与不属于本人统一返回 404 RESERVATION_NOT_FOUND，
+        不通过 403/404 差异泄露他人预约是否存在。
+      parameters:
+        - name: reservationId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[1-9][0-9]*$'
+      responses:
+        '200':
+          description: 本人预约详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationResponse'
+        '401':
+          description: 未登录或会话失效（AUTH_REQUIRED）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 预约不存在或不属于当前用户（RESERVATION_NOT_FOUND）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+  parameters:
+    CsrfHeader:
+      name: X-XSRF-TOKEN
+      in: header
+      required: true
+      description: 名称和值以 GET /api/v1/auth/csrf 返回的 headerName/token 为准。
+      schema:
+        type: string
+  schemas:
+    CreateReservationRequest:
+      type: object
+      required: [resourceId, startTime, endTime, clientRequestId]
+      properties:
+        resourceId:
+          type: string
+          pattern: '^[1-9][0-9]*$'
+        startTime:
+          type: string
+          format: date-time
+          example: '2026-11-03T09:00:00+08:00'
+        endTime:
+          type: string
+          format: date-time
+          example: '2026-11-03T10:00:00+08:00'
+        clientRequestId:
+          type: string
+          maxLength: 100
+          description: 前端为同一次业务提交生成，网络重试时复用；不同参数必须使用新值。
+    Reservation:
+      type: object
+      required:
+        [reservationId, resourceId, resourceName, resourceType, location, unitLabel,
+         startTime, endTime, status, acceptedAt, arrivalDeadline, createdAt]
+      properties:
+        reservationId: {type: string}
+        resourceId: {type: string}
+        resourceName: {type: string}
+        resourceType: {type: string}
+        location: {type: string}
+        unitLabel: {type: string}
+        startTime: {type: string, format: date-time}
+        endTime: {type: string, format: date-time}
+        status:
+          type: string
+          enum: [RESERVED, CHECKED_IN, COMPLETED, CANCELLED]
+        acceptedAt: {type: string, format: date-time}
+        arrivalDeadline:
+          type: string
+          format: date-time
+          description: 座位为 acceptedAt+30 分钟；体育为 startTime+15 分钟。
+        checkInAt: {type: string, format: date-time, nullable: true}
+        checkOutAt: {type: string, format: date-time, nullable: true}
+        cancelReason:
+          type: string
+          nullable: true
+          enum: [USER_CANCEL, NO_SHOW, RESOURCE_DISABLED, null]
+        createdAt: {type: string, format: date-time}
+    ReservationPage:
+      type: object
+      required: [items, total, page, size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Reservation'
+        total: {type: integer, format: int64}
+        page: {type: integer}
+        size: {type: integer}
+    ReservationResponse:
+      type: object
+      required: [code, message, data, requestId]
+      properties:
+        code: {type: string, enum: [OK]}
+        message: {type: string}
+        data:
+          $ref: '#/components/schemas/Reservation'
+        requestId: {type: string}
+    ReservationPageResponse:
+      type: object
+      required: [code, message, data, requestId]
+      properties:
+        code: {type: string, enum: [OK]}
+        message: {type: string}
+        data:
+          $ref: '#/components/schemas/ReservationPage'
+        requestId: {type: string}
+    Error:
+      type: object
+      required: [code, message, data, requestId]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        data: {nullable: true}
+        requestId: {type: string}
