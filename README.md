@@ -1,60 +1,55 @@
-# CampusShare
+# 校享 CampusShare
 
-校享 CampusShare——校园公共场地预约与管理平台。
+校园公共场地预约与管理平台，统一图书馆、教室和体育场所的查询、预约、到离场与自动释放，兼顾电脑和手机网页。
 
-当前分支 `feature/XIA-5-XIA-6` 实现了：
+## 开发前先读
 
-- **XIA-5 创建预约**：资源/时段选择、开放与教学占用检查、冲突检查、`clientRequestId` 幂等、座位/体育到馆期限。
-- **XIA-6 我的预约**：本人预约分页列表、状态筛选、空状态、预约详情与越权访问拒绝。
+| 读者 | 文件与用途 |
+|---|---|
+| 全体成员 | [项目背景与业务规则 V1.2](docs/校享CampusShare_项目背景与业务规则.md)：产品背景、三类资源流程、15/30分钟、结束释放、地点码及验收 |
+| 本次更新涉及的同学 | [2026-11-04开发同步说明](docs/校享CampusShare_开发同步说明_2026-11-04.md)：各模块怎样调整、与现有故事怎样衔接 |
+| 前端 | [前端开发约定 V1.2](docs/校享CampusShare_前端开发约定.md)：页面、Vue Bits视觉、手机扫码、模拟刷卡及接口协作 |
+| 后端、数据库和接口 | [后端数据库接口与协作约定 V1.2](docs/校享CampusShare_后端数据库接口与协作约定.md)：数据模型、状态、事务、任务及身份校验 |
+| 全体协作成员 | [开发环境与协作约定 V1.2](docs/校享CampusShare_开发环境与协作约定.md)：环境、分支、PR及检查 |
+| 使用Agent的成员 | [AGENTS.md](AGENTS.md)：Agent开发背景与必须遵守的规则 |
 
-## 目录
+业务要求统一按《项目背景与业务规则》，页面与后端细节按对应开发约定；请求/响应字段和错误例子统一在docs/api/维护，数据库通过版本化SQL脚本同步。旧PingCode工作项按本次更新同步后验收，不能仅按旧标题理解新流程。
 
-```text
-backend/            Spring Boot 3.5.16 + Java 21 + MyBatis 3.0.5
-frontend/           Vue 3 + TypeScript + Vite
-docs/api/           预约与临时资源读取的 OpenAPI 契约
-docs/database/      001_schema.sql、002_demo_data.sql
-docs/decisions/     ADR-001：预约垂直切片与 XIA-11/14 的衔接
-docs/testing/       XIA-5/XIA-6 测试计划与测试用例
-docs/verification/  XIA-5/XIA-6 实际验证记录
-```
+## 当前产品流程
 
-## 快速开始
+| 类型 | 数据来源 | 入场 | 未到释放 | 正常结束 |
+|---|---|---|---|---|
+| 图书馆座位 | 模拟座位＋系统预约 | 模拟刷卡 | 预约成功起30分钟 | 刷卡离场立即完成并释放 |
+| 教室 | 模拟教务占用＋系统预约 | 预约账户扫地点码 | 预约开始起15分钟 | 预约结束自动完成并释放 |
+| 体育场所 | 模拟外部占用＋系统预约 | 预约账户扫地点码 | 预约开始起15分钟 | 预约结束自动完成并释放 |
 
-1. 准备 MySQL 8.0/8.4，在空库执行 `docs/database/001_schema.sql` 与 `docs/database/002_demo_data.sql`（Windows 客户端加 `--default-character-set=utf8mb4`）。
-2. 启动后端（默认 8081，因为本机 8080 已被其他进程占用）：
+地点码绑定具体教室、球桌或球场。扫码自动发起签到，后端核对身份、预约、地点、时间和状态后登记；二维码解析成功不能代替业务签到成功。
 
-   ```powershell
-   cd backend
-   $env:JAVA_HOME = 'D:\Program Files\Java\jdk-21.0.9'
-   $env:CAMPUSSHARE_DB_URL = 'jdbc:mysql://127.0.0.1:3306/campusshare?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true'
-   $env:CAMPUSSHARE_DB_USERNAME = 'root'
-   $env:CAMPUSSHARE_DB_PASSWORD = '你的本地密码'
-   .\mvnw.cmd spring-boot:run
-   ```
+## 技术与工程
 
-3. 启动前端并访问 `http://localhost:5173`：
+Vue 3 + TypeScript + Vite、npm；Java 21 + Spring Boot 3.5.16 + MyBatis Starter 3.0.5；MySQL 8.4 LTS。视觉参考Vue Bits，前端VS Code、后端IDEA；GitHub管理代码、PingCode管理需求。
 
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
+- frontend/：当前前端工程。
+- campus-share-backend/：当前主后端工程，按业务分包扩展。
+- docs/：业务规则、开发约定、接口和验证说明。
+- 独立功能模块接入主后端前，核对依赖、包扫描、共享数据库、认证与统一锁顺序。
 
-   演示账号：`student01`、`student02`、`teacher01`，密码均为 `Campus@123`。
+本次是文档要求更新，不代表新增功能已实现、模块已接入或产品已验收。成员按文档核对自己负责的代码、接口、SQL和测试，在功能分支PR中说明实际结果。
 
-## 验证与检查
+## XIA-5 / XIA-6 当前分支
 
-```bash
-cd backend && ./mvnw test          # H2；并发行锁测试跳过
-cd frontend && npm run build       # vue-tsc + vite build
-```
+当前分支 `feature/XIA-5-XIA-6` 实现：
 
-真实 MySQL 8.0.44 与端到端检查结果见 `docs/verification/XIA-5-XIA-6.md`。GitHub Actions（MySQL 8.4 service）配置见 `.github/workflows/ci.yml`。
+- **XIA-5 创建预约**：资源/日期/时段选择、开放与占用检查、冲突检查、`clientRequestId` 幂等、座位 30 分钟/教室与体育 15 分钟到馆期限。
+- **XIA-6 我的预约**：本人预约分页列表、状态筛选、空状态、预约详情与越权访问拒绝；展示 RESERVED、CHECKED_IN、COMPLETED、CANCELLED 及原因。
 
-## 当前边界
+相关文件：
 
-- `auth` 是 XIA-1 落地前的最小会话登录，不是 XIA-1 的完整交付。
-- `resources` 是 XIA-4 落地前的临时只读依赖；正式接口交付后应替换。
-- XIA-7 取消、XIA-8 签到/签退、XIA-11 座位超时任务不在本分支范围。
-- 详细约定仍以 `docs/` 下三份团队文档为准。
+- `backend/`：当前预约切片的后端实现（按 V1.2 约定合入 `campus-share-backend/` 的工作项，见 PR 说明）。
+- `frontend/`：预约页面与请求封装。
+- `docs/api/`：预约接口 OpenAPI。
+- `docs/database/`：全量参考建表与演示数据。
+- `docs/testing/`：测试计划、测试用例和 PingCode 导入文件。
+- `docs/verification/`：实际验证记录。
+
+本地数据库连接通过环境变量提供，不提交真实密码；本机 3306 已有 MySQL 时，测试库使用独立数据库名，避免覆盖他人的 `campusshare` 数据。
