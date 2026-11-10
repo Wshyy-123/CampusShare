@@ -152,10 +152,18 @@ npm run build
 1. `auth`/`resource` 是基于共享 `app_user`/`resource` 表的临时适配；XIA-1/3/4 的 `backend/` 来源模块尚未迁入主应用，后续替换时仍使用同一套用户和资源表，不新增第二套模型。
 2. 主工程旧的 `CheckInController` 仍使用 `userId` 查询参数，不符合 V1.2 的会话身份+地点码要求；已通过 `campusshare.legacy-checkin.enabled=false` 默认关闭，待 XIA-8 负责人改造。
 3. 旧 `SportsTimeoutTask` 已默认关闭，等待 XIA-9 负责人按资源类型改造。
-4. 本地 MySQL 为 8.0.12，低于团队基线 8.4；GitHub Actions（MySQL 8.4）配置已更新，但尚未实际运行。
+4. 本地 MySQL 为 8.0.12，低于团队基线 8.4；PR #6 的 GitHub Actions（MySQL 8.4 service）backend/frontend 均已通过。
 5. 未执行真实手机/二维码/刷卡硬件验证；未完成另一名成员评审；未推送/合并到 main。
 6. V1.2 新增的 5 条用例已于 2026-11-10 补导 PingCode；GUI 点击走查仍受工具限制。
 
 ## 八、AI 使用记录
 
 本次使用 ZCode 阅读 V1.2 业务规则、AGENTS.md、开发同步说明和主工程代码，执行 main 合并、将预约模块接入 `campus-share-backend/`、修复 Mapper 冲突、补充 003/004 数据库迁移、更新前端文案和接口显示，并在本机 H2、MySQL 8.0.12 和真实前后端环境执行测试。所有实际结果以上文为准；未把未执行或工具阻塞的检查写成已通过。
+
+
+## 九、PR 与 CI
+
+- PR：**#6** https://github.com/Wshyy-123/CampusShare/pull/6
+- 目标分支：`main`；来源分支：`feature/XIA-5-XIA-6`
+- GitHub Actions：`ci` 的 **backend**（MySQL 8.4 service）和 **frontend** 均成功；XIA-11/14 的独立 CI 也成功。
+- 合并前仍需另一名开发人员评审；本次未合并、未推送 main。
