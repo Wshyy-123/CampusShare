@@ -187,4 +187,5 @@
 
 - 本测试计划：`docs/testing/XIA-7-XIA-8-测试计划.md`
 - 测试用例：[PingCode-测试用例-XIA-7-XIA-8.xlsx](PingCode-测试用例-XIA-7-XIA-8.xlsx)
+- 执行结果：[XIA-7-XIA-8-执行结果.xlsx](XIA-7-XIA-8-执行结果.xlsx)（2026-11-10，30 条全部通过，含每条实际结果）
 - 实测记录：[XIA-7-XIA-8.md](../verification/XIA-7-XIA-8.md)
