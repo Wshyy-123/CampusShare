@@ -52,10 +52,10 @@
 - `docs/校享CampusShare_开发环境与协作约定.md`
 - `docs/api/reservations.yaml`
 - `docs/api/resources.yaml`
-- `campus-share-backend/docs/database/001_schema.sql`
-- `campus-share-backend/docs/database/002_demo_data.sql`
-- `campus-share-backend/docs/database/003_xia5_xia6_core.sql`
-- `campus-share-backend/docs/database/004_xia5_xia6_demo.sql`
+- `campus-share-backend/docs/datebase/001_schema.sql`
+- `campus-share-backend/docs/datebase/002_demo_data.sql`
+- `campus-share-backend/docs/datebase/003_xia5_xia6_core.sql`
+- `campus-share-backend/docs/datebase/004_xia5_xia6_demo.sql`
 
 ## 4. 测试环境
 

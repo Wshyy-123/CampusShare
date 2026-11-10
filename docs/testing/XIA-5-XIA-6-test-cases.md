@@ -10,7 +10,7 @@
 - 优先级：P0 = 主流程/验收必测；P1 = 重要边界/异常/权限；P2 = 体验/兼容/补充。
 - 类型：功能、边界、异常、权限、并发、安全、UI、兼容、数据。
 - 状态：`通过（自动化）`、`通过（端到端）`、`通过（自动化+端到端）`、`未执行（原因）`、`待评审`。
-- 自动化方法名位于 `campus-share-backend/src/test/java/com/campusshare/reservation/ReservationCreateIntegrationTest.java` 等同目录测试类。
+- 自动化方法名位于 `campus-share-backend/src/test/java/org/campus/campussharebackend/reservation/ReservationCreateIntegrationTest.java` 等同目录测试类。
 - 端到端检查使用真实 Session + CSRF，请求经 Vite `/api` 代理到后端。
 - 演示数据基线：`student01`、`student02`、`teacher01`，密码 `Campus@123`；资源 101/102 座位、201/202 羽毛球、301 乒乓球、401 网球；201 在 D+1 10:00–12:00 有教学占用。
 

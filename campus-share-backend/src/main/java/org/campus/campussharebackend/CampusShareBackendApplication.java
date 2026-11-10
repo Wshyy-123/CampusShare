@@ -6,12 +6,12 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @EnableScheduling
-@SpringBootApplication(scanBasePackages = {"org.campus.campussharebackend", "com.campusshare"})
+@SpringBootApplication
 @MapperScan({
         "org.campus.campussharebackend.mapper",
-        "com.campusshare.auth.mapper",
-        "com.campusshare.resource.mapper",
-        "com.campusshare.reservation.mapper"
+        "org.campus.campussharebackend.auth.mapper",
+        "org.campus.campussharebackend.resource.mapper",
+        "org.campus.campussharebackend.reservation.mapper"
 })
 public class CampusShareBackendApplication {
 

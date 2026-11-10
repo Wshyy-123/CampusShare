@@ -41,14 +41,14 @@ Vue 3 + TypeScript + Vite、npm；Java 21 + Spring Boot 3.5.16 + MyBatis Starter
 
 ## XIA-5 / XIA-6 当前分支
 
-当前分支 `feature/XIA-5-XIA-6` 已按 V1.2 合入主工程，实现：
+当前分支 `feature/XIA-5-XIA-6` 已按 V1.3 合入主工程，实现：
 
 - **XIA-5 创建预约**：资源/日期/时段选择、开放与占用检查、冲突检查、`clientRequestId` 幂等、座位 30 分钟/教室与体育 15 分钟到馆期限。
 - **XIA-6 我的预约**：本人预约分页列表、状态筛选、空状态、预约详情与越权访问拒绝；展示 RESERVED、CHECKED_IN、COMPLETED、CANCELLED 及原因。
 
 相关文件：
 
-- `campus-share-backend/`：主后端，预约模块位于 `com.campusshare`，由主启动类统一扫描；数据库迁移见 `campus-share-backend/docs/database/003_xia5_xia6_core.sql` 和 `004_xia5_xia6_demo.sql`。
+- `campus-share-backend/`：主后端，预约模块位于 `org.campus.campussharebackend`，由主启动类统一扫描；数据库迁移见 `campus-share-backend/docs/datebase/003_xia5_xia6_core.sql` 和 `004_xia5_xia6_demo.sql`。
 - `frontend/`：预约页面与请求封装，默认代理到 8080；本机端口冲突可用 `VITE_API_PROXY_TARGET` 覆盖。
 - `docs/api/`：预约接口 OpenAPI。
 - `docs/testing/`：测试计划、测试用例和 PingCode 导入文件。

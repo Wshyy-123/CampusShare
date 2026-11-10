@@ -4,7 +4,7 @@
 - 执行位置：`campus-share-backend/`、`frontend/`（本地）
 - 对应故事：XIA-5 创建预约；XIA-6 我的预约与详情
 - 关联测试计划/用例：`docs/testing/XIA-5-XIA-6-test-plan.md`、`docs/testing/XIA-5-XIA-6-test-cases.md`
-- 结论：预约模块已按 V1.2 合入主后端 `campus-share-backend/`；H2 与本地 MySQL 8.0.12 自动化测试通过；主后端 + 前端 + 真实 MySQL 的 26 项端到端检查全部通过。浏览器 GUI 点击仍受工具表面超时限制，未标记通过。
+- 结论：预约模块已按最新 main 的 V1.3 集成要求合入主后端 `campus-share-backend/`；H2 与本地 MySQL 8.0.12 自动化测试通过；主后端 + 前端 + 真实 MySQL 的 26 项端到端检查全部通过。浏览器 GUI 点击仍受工具表面超时限制，未标记通过。
 
 ## 一、实际环境和命令
 
@@ -12,7 +12,7 @@
 |---|---|
 | JDK | Microsoft OpenJDK 21.0.9 |
 | Spring Boot / MyBatis | 3.5.16 / 3.0.5 |
-| 主后端 | `campus-share-backend/`，包 `org.campus.campussharebackend` + `com.campusshare` |
+| 主后端 | `campus-share-backend/`，统一包根 `org.campus.campussharebackend` |
 | 默认测试库 | H2 2.x，MySQL 模式 |
 | 本地 MySQL | 127.0.0.1:3306，8.0.12；测试库 `campusshare_xia56_test`，演示库 `campusshare` |
 | 前端 | Node 22.23.1、Vue 3.5.44、Vite 8.3.5、TypeScript 6.0.3 |
@@ -34,7 +34,7 @@ cd ../frontend
 npm run build
 ```
 
-数据库脚本按顺序执行（`campus-share-backend/docs/database/`）：
+数据库脚本按顺序执行（`campus-share-backend/docs/datebase/`）：
 
 1. `001_schema.sql`
 2. `002_demo_data.sql`
@@ -149,12 +149,12 @@ npm run build
 
 ## 七、已知限制与未执行项
 
-1. `auth` 是 XIA-1 落地前的最小会话登录；`resources` 是 XIA-4 的临时只读依赖。
+1. `auth`/`resource` 是基于共享 `app_user`/`resource` 表的临时适配；XIA-1/3/4 的 `backend/` 来源模块尚未迁入主应用，后续替换时仍使用同一套用户和资源表，不新增第二套模型。
 2. 主工程旧的 `CheckInController` 仍使用 `userId` 查询参数，不符合 V1.2 的会话身份+地点码要求；已通过 `campusshare.legacy-checkin.enabled=false` 默认关闭，待 XIA-8 负责人改造。
 3. 旧 `SportsTimeoutTask` 已默认关闭，等待 XIA-9 负责人按资源类型改造。
 4. 本地 MySQL 为 8.0.12，低于团队基线 8.4；GitHub Actions（MySQL 8.4）配置已更新，但尚未实际运行。
 5. 未执行真实手机/二维码/刷卡硬件验证；未完成另一名成员评审；未推送/合并到 main。
-6. V1.2 新增测试用例尚未重新导入 PingCode；GUI 点击走查仍受工具限制。
+6. V1.2 新增的 5 条用例已于 2026-11-10 补导 PingCode；GUI 点击走查仍受工具限制。
 
 ## 八、AI 使用记录
 

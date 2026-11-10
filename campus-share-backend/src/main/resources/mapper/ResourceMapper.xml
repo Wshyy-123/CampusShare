@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.campusshare.resource.mapper.ResourceMapper">
+<mapper namespace="org.campus.campussharebackend.resource.mapper.ResourceMapper">
 
-    <select id="list" resultType="com.campusshare.resource.entity.ResourceRecord">
+    <select id="list" resultType="org.campus.campussharebackend.resource.entity.ResourceRecord">
         SELECT id, name, location, resource_type, unit_label, enabled
         FROM resource
         WHERE enabled = TRUE
@@ -16,13 +16,13 @@
         ORDER BY resource_type, name, id
     </select>
 
-    <select id="findById" resultType="com.campusshare.resource.entity.ResourceRecord">
+    <select id="findById" resultType="org.campus.campussharebackend.resource.entity.ResourceRecord">
         SELECT id, name, location, resource_type, unit_label, enabled
         FROM resource
         WHERE id = #{id}
     </select>
 
-    <select id="findCoveringOpening" resultType="com.campusshare.resource.entity.OpeningRecord">
+    <select id="findCoveringOpening" resultType="org.campus.campussharebackend.resource.entity.OpeningRecord">
         SELECT id, resource_id, start_at, end_at
         FROM resource_opening
         WHERE resource_id = #{resourceId}
@@ -32,7 +32,7 @@
         LIMIT 1
     </select>
 
-    <select id="lockCoveringOpening" resultType="com.campusshare.resource.entity.OpeningRecord">
+    <select id="lockCoveringOpening" resultType="org.campus.campussharebackend.resource.entity.OpeningRecord">
         SELECT id, resource_id, start_at, end_at
         FROM resource_opening
         WHERE resource_id = #{resourceId}
@@ -43,7 +43,7 @@
         FOR UPDATE
     </select>
 
-    <select id="listOpeningsForDate" resultType="com.campusshare.resource.entity.OpeningRecord">
+    <select id="listOpeningsForDate" resultType="org.campus.campussharebackend.resource.entity.OpeningRecord">
         SELECT id, resource_id, start_at, end_at
         FROM resource_opening
         WHERE resource_id = #{resourceId}
@@ -52,7 +52,7 @@
         ORDER BY start_at
     </select>
 
-    <select id="listBlocksForDate" resultType="com.campusshare.resource.entity.BlockRecord">
+    <select id="listBlocksForDate" resultType="org.campus.campussharebackend.resource.entity.BlockRecord">
         SELECT id, resource_id, block_type, start_at, end_at, reason
         FROM resource_block
         WHERE resource_id = #{resourceId}
@@ -61,7 +61,7 @@
         ORDER BY start_at
     </select>
 
-    <select id="listActiveReservationsForDate" resultType="com.campusshare.resource.entity.ReservationSlot">
+    <select id="listActiveReservationsForDate" resultType="org.campus.campussharebackend.resource.entity.ReservationSlot">
         SELECT id, start_at, end_at, status
         FROM reservation
         WHERE resource_id = #{resourceId}
