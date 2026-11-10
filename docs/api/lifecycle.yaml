@@ -1,0 +1,109 @@
+openapi: 3.0.3
+info:
+  title: CampusShare XIA-14 资源停用接口
+  version: 0.1.0
+  description: 仅描述本次分工。XIA-11 为服务端后台任务，不提供普通用户触发入口。
+paths:
+  /api/v1/admin/resources/{resourceId}/disable-periods:
+    post:
+      operationId: disableResourcePeriod
+      summary: 停用资源区间并取消受影响且尚未开始使用的预约
+      description: |
+        需要已认证的 RESOURCE_ADMIN、ROLE_RESOURCE_ADMIN authority 以及启用的数据库账号。
+        CSRF 校验沿用共享 Spring Security 配置，写请求先获取当前令牌。
+        区间为左闭右开，所有写入在一个事务中完成。
+        存在 CHECKED_IN 且当前时间已到预约开始时间的重叠预约时整次请求返回409。
+        已确认到馆但尚未到预约开始时间的重叠预约可以取消。
+        停用不会删除历史，不会因取消预约而重新开放资源。
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: resourceId
+          in: path
+          required: true
+          schema: {type: string, pattern: '^[1-9][0-9]*$'}
+          description: 有符号BIGINT范围内的正整数ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [startTime, endTime, reason]
+              properties:
+                startTime: {type: string, format: date-time}
+                endTime: {type: string, format: date-time}
+                reason: {type: string, minLength: 1, maxLength: 500}
+            example:
+              startTime: '2026-11-02T10:00:00+08:00'
+              endTime: '2026-11-02T12:00:00+08:00'
+              reason: 场地维修
+      responses:
+        '200':
+          description: 停用和取消成功，提交后返回；没有受影响预约时列表为空
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data, requestId]
+                properties:
+                  code: {type: string, enum: [OK]}
+                  message: {type: string}
+                  requestId: {type: string}
+                  data:
+                    type: object
+                    required: [resourceId, cancelledReservationIds]
+                    properties:
+                      resourceId: {type: string}
+                      cancelledReservationIds:
+                        type: array
+                        items: {type: string}
+              example:
+                code: OK
+                message: 停用成功
+                data: {resourceId: '101', cancelledReservationIds: ['1001']}
+                requestId: example-trace-001
+        '400':
+          description: INVALID_ARGUMENT，时间必须带偏移且开始早于结束，原因非空且最多500字
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+              example: {code: INVALID_ARGUMENT, message: 开始时间必须早于结束时间, data: null, requestId: example-trace-002}
+        '401':
+          description: AUTH_REQUIRED，未登录或会话失效
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        '403':
+          description: FORBIDDEN，无管理员权限或账号停用；共享安全层的CSRF失败使用CSRF_INVALID
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        '404':
+          description: RESOURCE_NOT_FOUND，资源不存在
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        '409':
+          description: INVALID_STATE，范围内有已开始使用的预约；整次操作不生效
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+              example: {code: INVALID_STATE, message: 停用范围内存在已开始使用的预约，请调整范围, data: null, requestId: example-trace-003}
+        '500':
+          description: INTERNAL_ERROR，事务回滚，不返回堆栈或连接信息
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+components:
+  securitySchemes:
+    sessionCookie: {type: apiKey, in: cookie, name: JSESSIONID}
+  schemas:
+    Error:
+      type: object
+      required: [code, message, data, requestId]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        data: {nullable: true}
+        requestId: {type: string}

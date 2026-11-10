@@ -1,6 +1,8 @@
 # 校享 CampusShare 后端、数据库、接口与开工协作约定
 
-版本：V1.2｜日期：2026-11-04｜适用对象：全体成员，重点供后端开发及前后端联调使用。
+版本：V1.3｜日期：2026-11-10｜适用对象：全体成员，重点供后端开发及前后端联调使用。
+
+工程接入统一执行[2026-11-10主工程集成与协作要求](校享CampusShare_主工程集成与协作要求_2026-11-10.md)：在最新main的功能分支中直接修改campus-share-backend/和frontend/src/，来源模块不再扩展为独立产品应用。业务规则保持原统一入口。
 
 本文件与《校享CampusShare_前端开发约定.md》配套，提供后端工程、数据库、登录、接口、联调与开发协作的统一方案。业务统一按[项目背景与业务规则](校享CampusShare_项目背景与业务规则.md)实现，对应PingCode工作项同步本次变化后验收；模块调整见[开发同步说明](校享CampusShare_开发同步说明_2026-11-04.md)。文档要求不代表功能已接入或完成。
 
@@ -28,13 +30,13 @@ Spring Security、Spring Framework、MySQL驱动等由Spring Boot依赖管理统
 
 ### 1. 工程组织
 
-同一个GitHub仓库内，前端为frontend/，当前主后端为campus-share-backend/，说明与接口在docs/。在现有主工程扩展，不为教室、图书馆、体育分别创建独立生产后端。独立库模块接入时显式统一依赖和包扫描，不因包名不同而遗漏服务或任务。下面为主后端业务分包结构，保留com.campusshare作为模块组织示意，不要求本次重命名已有org.campus包。
+同一个GitHub仓库内，前端为frontend/，当前主后端为campus-share-backend/，说明与接口在docs/。在现有主工程扩展，不为教室、图书馆、体育分别创建独立生产后端。独立库模块接入时显式统一依赖和包扫描，不因包名不同而遗漏服务或任务。后端保留现有org.campus.campussharebackend根包和应用入口，业务按下面结构分包；迁移模块时同步import和Mapper扫描，不另起生产应用。
 
 ```text
 campus-share-backend/
   pom.xml
   mvnw / mvnw.cmd / .mvn/
-  src/main/java/com/campusshare/
+  src/main/java/org/campus/campussharebackend/
     common/           统一响应、异常和通用工具
     config/           安全、时间和其他应用配置
     auth/             登录、当前身份与退出
