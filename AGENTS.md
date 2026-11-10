@@ -11,6 +11,8 @@
 3. docs/校享CampusShare_开发同步说明_2026-11-04.md：本次变化和模块调整。
 4. 前端按docs/校享CampusShare_前端开发约定.md；后端/数据库按docs/校享CampusShare_后端数据库接口与协作约定.md；协作按docs/校享CampusShare_开发环境与协作约定.md。
 
+前端另先读docs/校享CampusShare_前端基准与页面扩展指南.md：导航/路由统一在frontend/src/config/pages.ts，页面走useCampus服务，演示与真实API模式隔离。保持当前共享外壳/主题，不另起应用、不在真实模式用演示数据伪装成功；新增页面记录真实权限和接口验证。
+
 ## 必须保留的业务
 
 - 图书馆模拟入场/离场刷卡：预约成功起30分钟未到取消释放；离场立即完成释放；禁止主动取消不等于禁止正常离场。
