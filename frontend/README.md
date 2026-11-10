@@ -10,7 +10,7 @@ npm run dev
 ```
 
 - 开发地址：`http://localhost:5173`
-- Vite 将 `/api` 代理到 `http://localhost:8081`（本机 8080 已被其他进程占用；后端可用 `CAMPUSSHARE_PORT` 覆盖）
+- Vite 将 `/api` 代理到 `http://localhost:8080`（主后端默认端口；本机可用 `VITE_API_PROXY_TARGET` 覆盖）
 - 演示账号：`student01`、`student02`、`teacher01`，密码均为 `Campus@123`
 
 ## 检查

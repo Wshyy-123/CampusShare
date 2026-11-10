@@ -269,7 +269,7 @@ components:
         arrivalDeadline:
           type: string
           format: date-time
-          description: 座位为 acceptedAt+30 分钟；体育为 startTime+15 分钟。
+          description: 座位为 acceptedAt+30 分钟；教室和体育为 startTime+15 分钟。
         checkInAt: {type: string, format: date-time, nullable: true}
         checkOutAt: {type: string, format: date-time, nullable: true}
         cancelReason:

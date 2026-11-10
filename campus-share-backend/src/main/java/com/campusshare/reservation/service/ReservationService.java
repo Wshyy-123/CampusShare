@@ -11,7 +11,7 @@ import com.campusshare.lifecycle.SeatArrivalDeadline;
 import com.campusshare.reservation.dto.CreateReservationRequest;
 import com.campusshare.reservation.entity.ReservationRecord;
 import com.campusshare.reservation.entity.ReservationRow;
-import com.campusshare.reservation.mapper.ReservationMapper;
+import com.campusshare.reservation.mapper.ReservationRepository;
 import com.campusshare.reservation.vo.ReservationVO;
 import com.campusshare.resource.entity.ResourceRecord;
 import com.campusshare.resource.mapper.ResourceMapper;
@@ -32,13 +32,13 @@ public class ReservationService {
             Set.of("RESERVED", "CHECKED_IN", "COMPLETED", "CANCELLED");
     private static final int MAX_PAGE_SIZE = 100;
 
-    private final ReservationMapper reservationMapper;
+    private final ReservationRepository reservationMapper;
     private final ResourceMapper resourceMapper;
     private final ResourceAvailabilityGuard availabilityGuard;
     private final CurrentUserProvider currentUserProvider;
     private final Clock clock;
 
-    public ReservationService(ReservationMapper reservationMapper,
+    public ReservationService(ReservationRepository reservationMapper,
                               ResourceMapper resourceMapper,
                               ResourceAvailabilityGuard availabilityGuard,
                               CurrentUserProvider currentUserProvider,

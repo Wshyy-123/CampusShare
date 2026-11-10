@@ -34,9 +34,16 @@
 - XIA-1 的完整登录、角色入口、会话过期/固定防护。
 - XIA-4 的正式资源查询与可约计算。
 - XIA-7 取消、XIA-8 签到/签退、XIA-9/10/11/14 的超时/停用/释放后台任务。
-- XIA-12 讨论室、XIA-13 教室的专项规则。
+- XIA-12 讨论室专项规则；教室的基本创建/查询已纳入本切片，签到、正常结束和教室违规由后续故事实现。
 - 生产部署、压测、容量和长时间稳定性测试。
 - 真实手机扫码和真实刷卡硬件（本轮用模拟入口/演示数据）。
+
+### 2.3 V1.2 业务补充
+
+- 教室与体育均使用 15 分钟未到期限；图书馆座位仍为确认成功起 30 分钟。
+- 教室教学占用和体育外部占用都通过 `resource_block` 与系统预约共同判断；`block_type` 使用 `TEACHING`/`EXTERNAL`/`DISABLED`。
+- XIA-6 需展示 COMPLETED（教室/体育正常结束、图书馆刷卡离场）和 CANCELLED（USER_CANCEL/NO_SHOW/RESOURCE_DISABLED），并区分原因。
+- 本切片负责创建与查询；签到、离场、正常结束任务和地点码由 XIA-7/8/9/10/11 实现。
 
 ## 3. 参考文档
 
@@ -45,8 +52,10 @@
 - `docs/校享CampusShare_开发环境与协作约定.md`
 - `docs/api/reservations.yaml`
 - `docs/api/resources.yaml`
-- `docs/database/001_schema.sql`
-- `docs/database/002_demo_data.sql`
+- `campus-share-backend/docs/database/001_schema.sql`
+- `campus-share-backend/docs/database/002_demo_data.sql`
+- `campus-share-backend/docs/database/003_xia5_xia6_core.sql`
+- `campus-share-backend/docs/database/004_xia5_xia6_demo.sql`
 
 ## 4. 测试环境
 
@@ -54,7 +63,7 @@
 |---|---|
 | 后端 | Java 21、Spring Boot 3.5.16、MyBatis 3.0.5、Maven Wrapper 3.9.9 |
 | 默认自动化库 | H2 2.x（MySQL 模式，内存） |
-| 本地真实 MySQL | 8.0.44，隔离实例 127.0.0.1:3307；测试库 `campusshare_test`，演示库 `campusshare` |
+| 本地真实 MySQL | 127.0.0.1:3306，8.0.12；测试库 `campusshare_xia56_test`，演示库 `campusshare` |
 | 团队基线 MySQL | 8.4 LTS；GitHub Actions service 已配置，待实际运行 |
 | 前端 | Node 22.23.1、npm 11.12.1、Vue 3.5.44、Vite 8.3.5、TypeScript 6.0.3 |
 | 浏览器 | ZCode In-app Browser（DOM 可读；本轮输入/截图表面超时） |
@@ -68,8 +77,8 @@
 | 层级 | 方法 | 工具/入口 | 主要覆盖 |
 |---|---|---|---|
 | 单元/组件 | 参数、期限、时间转换、状态判断 | JUnit 5 / Spring Boot Test | 座位 30 分钟、体育 15 分钟、UTC→上海、开始=结束 |
-| 集成 | MockMvc + 真实数据库方言 | H2 MySQL 模式、MySQL 8.0.44 | 创建、冲突、阻塞、停用、幂等、列表、详情、权限 |
-| 并发 | 多线程同时调用 Service，真实行锁 | MySQL 8.0.44；H2 跳过并发 | 重叠冲突、同一 clientRequestId 并发 |
+| 集成 | MockMvc + 真实数据库方言 | H2 MySQL 模式、MySQL 8.0.12 | 创建、冲突、阻塞、停用、幂等、列表、详情、权限 |
+| 并发 | 多线程同时调用 Service，真实行锁 | MySQL 8.0.12；H2 跳过并发 | 重叠冲突、同一 clientRequestId 并发 |
 | 接口端到端 | 真实会话 + CSRF，经 Vite 代理 | Python requests + 运行中的前后端 | 登录→资源→创建→查询→越权 |
 | 前端静态检查 | 类型检查 + 生产构建 | `vue-tsc -b && vite build` | 类型、组件、路由、打包 |
 | 前端 GUI | 真实浏览器点击/观察 | ZCode IAB | 登录、表单、成功/失败反馈、列表、详情、窄屏 |
@@ -139,11 +148,12 @@
 
 ### 7.3 当前状态
 
-- 后端自动化：36 个测试，MySQL 8.0.44 上 0 失败、0 跳过；H2 上 0 失败、2 个 MySQL 专用并发测试跳过。
-- 接口端到端：25 项检查全部通过（执行于 2026-11-02，早于最后的锁定读修复；修复后未重跑，修复点由 MySQL 并发自动化用例覆盖）。
+- 后端自动化：37 个测试，MySQL 8.0.12 上 0 失败、0 跳过；H2 上 0 失败、2 个 MySQL 专用并发测试跳过。
+- 接口端到端：26 项检查全部通过（主工程集成后的当前代码版本；覆盖座位/教室/体育、外部占用、COMPLETED）。
 - 前端构建：通过。
 - 真实浏览器点击走查：受 IAB 输入/截图表面超时阻塞，未完成。
 - GitHub Actions MySQL 8.4：工作流已配置，尚未实际运行。
+- PingCode：2026-11-03 导入 43 条，2026-11-10 补导 V1.2 新用例 5 条（预览 5/5）；当前库总数 143，期间其他成员也有补充。
 - 另一名成员评审：尚未进行。
 - 结论：**可以进入 PR/评审和 CI 阶段，但还不能宣称团队 DoD 全部完成。**
 
@@ -172,10 +182,10 @@
 | 风险 | 影响 | 应对 |
 |---|---|---|
 | 本机 8080 被占用 | 后端无法按文档端口启动 | 默认 8081，Vite 代理同步；README 说明可用 `CAMPUSSHARE_PORT` 覆盖 |
-| 本地 MySQL 8.0.44 与团队 8.4 不一致 | 方言/行为差异未在本地暴露 | CI 使用 `mysql:8.4` service；本地结果不作为 8.4 已通过的替代 |
+| 本地 MySQL 8.0.12 与团队 8.4 不一致 | 方言/行为差异未在本地暴露 | CI 使用 `mysql:8.4` service；本地结果不作为 8.4 已通过的替代 |
 | 认证/资源接口是临时依赖 | 与 XIA-1/XIA-4 合并时可能返工 | 隔离 `auth`/`resource` 包，OpenAPI 和 ADR 标注替换点 |
 | 浏览器工具输入/截图表面超时 | UI 点击走查无法完成 | 记录为阻塞，不伪造通过；工具恢复后补做 |
-| 并发测试只在 MySQL 执行 | H2 无法证明行锁行为 | H2 跳过并标注，MySQL 8.0.44 实际执行，CI 用 8.4 再跑 |
+| 并发测试只在 MySQL 执行 | H2 无法证明行锁行为 | H2 跳过并标注，MySQL 8.0.12 实际执行，CI 用 8.4 再跑 |
 | 时间相关测试接近午夜/时区问题 | 日期漂移导致误判 | 使用 D+1、服务端 Clock、Asia/Shanghai；测试数据动态生成 |
 | 演示数据脚本重复执行 | 唯一键冲突或重复预约 | 文档说明空库执行一次；测试夹具单独重建 |
 | 未评审/未跑 CI | 不能宣称团队 DoD | PR 中保留为未完成项，评审和 CI 结果回填 |
@@ -197,5 +207,5 @@
 
 - 交付物：本测试计划、`docs/testing/XIA-5-XIA-6-test-cases.md`、`docs/verification/XIA-5-XIA-6.md`、CI 结果、评审记录。
 - 缺陷记录字段：ID、严重级别、关联用例、现象、复现步骤、根因、修复、复测结果。
-- 当前缺陷：DEF-001（并发同一 `clientRequestId` 误报冲突），已修复并在 MySQL 8.0.44 复测通过，详见测试用例文档。
+- 当前缺陷：DEF-001（并发同一 `clientRequestId` 误报冲突），已修复并在 MySQL 8.0.12 复测通过，详见测试用例文档。
 - 未关闭项：真实浏览器点击走查、手机真机/窄屏、MySQL 8.4 CI、另一名成员评审。

@@ -125,7 +125,7 @@ components:
         - type: object
           required: [blockType, reason]
           properties:
-            blockType: {type: string, enum: [TEACHING, DISABLED]}
+            blockType: {type: string, enum: [TEACHING, EXTERNAL, DISABLED]}
             reason: {type: string}
     ReservationSlot:
       allOf:

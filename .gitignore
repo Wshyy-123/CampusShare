@@ -5,7 +5,7 @@ Thumbs.db
 *.iml
 
 # Java
-backend/target/
+campus-share-backend/target/
 *.class
 *.log
 

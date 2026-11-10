@@ -10,7 +10,7 @@
 - 优先级：P0 = 主流程/验收必测；P1 = 重要边界/异常/权限；P2 = 体验/兼容/补充。
 - 类型：功能、边界、异常、权限、并发、安全、UI、兼容、数据。
 - 状态：`通过（自动化）`、`通过（端到端）`、`通过（自动化+端到端）`、`未执行（原因）`、`待评审`。
-- 自动化方法名位于 `backend/src/test/java/com/campusshare/reservation/ReservationCreateIntegrationTest.java` 等同目录测试类。
+- 自动化方法名位于 `campus-share-backend/src/test/java/com/campusshare/reservation/ReservationCreateIntegrationTest.java` 等同目录测试类。
 - 端到端检查使用真实 Session + CSRF，请求经 Vite `/api` 代理到后端。
 - 演示数据基线：`student01`、`student02`、`teacher01`，密码 `Campus@123`；资源 101/102 座位、201/202 羽毛球、301 乒乓球、401 网球；201 在 D+1 10:00–12:00 有教学占用。
 
@@ -35,7 +35,7 @@
 | TC-X5-003 | P0 | 规则 | 座位预约创建成功 | 比较 acceptedAt 与 arrivalDeadline | 差值恰好 30 分钟 | 通过 | `seatDeadlineIsThirtyMinutesFromAcceptedTime`；端到端 seat-deadline |
 | TC-X5-004 | P0 | 规则 | 体育预约创建成功 | 比较 startTime 与 arrivalDeadline | 差值恰好 15 分钟 | 通过 | `sportsDeadlineIsFifteenMinutesFromStart`；端到端 sports-deadline |
 | TC-X5-005 | P0 | 功能/冲突 | student01 已创建资源 101 的 15:00–16:00 预约 | student02 提交同资源同重叠时段 | 409；code=RESERVATION_CONFLICT；数据库仍只有一条有效占用 | 通过 | `rejectsOverlappingReservationFromAnotherUser`；端到端 conflict-409 |
-| TC-X5-006 | P0 | 并发 | MySQL 8.0.44；资源 101 同一时段空闲 | 两个用户同时提交重叠预约，线程同时放行 | 一个成功，另一个 409 RESERVATION_CONFLICT；数据库只有一条 RESERVED/CHECKED_IN | 通过（MySQL） | `concurrentOverlappingRequestsLeaveAtMostOneActiveReservation` |
+| TC-X5-006 | P0 | 并发 | MySQL 8.0.12；资源 101 同一时段空闲 | 两个用户同时提交重叠预约，线程同时放行 | 一个成功，另一个 409 RESERVATION_CONFLICT；数据库只有一条 RESERVED/CHECKED_IN | 通过（MySQL） | `concurrentOverlappingRequestsLeaveAtMostOneActiveReservation` |
 | TC-X5-007 | P0 | 幂等 | 已成功创建一条预约 | 用相同 clientRequestId 和完全相同参数再次提交 | 200；返回同一 reservationId；数据库仍只有一条 | 通过 | `idempotentReplayReturnsSameReservation`；端到端 idempotent-replay |
 | TC-X5-008 | P0 | 幂等/异常 | 已成功创建一条预约 | 用相同 clientRequestId、不同结束时间再次提交 | 409；code=IDEMPOTENCY_CONFLICT；不新增预约 | 通过 | `sameClientRequestIdWithDifferentParametersIsConflict`；端到端 idempotency-conflict-409 |
 | TC-X5-009 | P0 | 并发/幂等 | MySQL；同一用户、同一 clientRequestId、同一参数 | 两个线程同时提交 | 一个 NEW、一个 REPLAY；返回同一 reservationId；数据库只有一条 | 通过（MySQL；本用例发现并修复 DEF-001） | `concurrentSameClientRequestIdReturnsOneReservation` |
@@ -79,16 +79,28 @@
 | TC-X6-017 | P2 | 数据/UI | 后端状态字典 | 对照 RESERVED/CHECKED_IN/COMPLETED/CANCELLED 与 USER_CANCEL/NO_SHOW/RESOURCE_DISABLED | 前后端文字一致；未知状态不崩溃 | 通过（代码审查） | `StatusBadge.vue`；`ReservationService` |
 | TC-X6-018 | P2 | 安全 | 他人预约与不存在 id | 分别请求 | 两者都返回 404 RESERVATION_NOT_FOUND，不通过 403/404 差异泄露 | 通过 | `cannotReadAnotherUsersReservation`、`unknownReservationIsNotFound`；端到端 |
 
+## 4.1 V1.2 补充用例
+
+| 用例ID | 优先级 | 类型 | 前置条件 | 操作步骤 | 预期结果 | 实际结果/状态 | 自动化/证据 |
+|---|---|---|---|---|---|---|---|
+| TC-X5-026 | P0 | 功能 | 教室 501 开放且 D+2 空闲 | 提交教室 D+2 09:00–10:00 预约 | 201；status=RESERVED；arrivalDeadline=start+15 分钟 | 通过（端到端） | classroom-create-15 |
+| TC-X5-027 | P0 | 规则 | 教室 501 D+1 10:00–12:00 有教学占用 | 提交 10:30–11:30 | 409 RESOURCE_UNAVAILABLE；不新增预约 | 通过（端到端） | teaching-block |
+| TC-X5-028 | P0 | 规则 | 羽毛球 2 D+1 18:00–20:00 有外部占用 | 提交 18:30–19:30 | 409 RESOURCE_UNAVAILABLE；不新增预约 | 通过（端到端） | external-block |
+| TC-X6-019 | P0 | 状态 | 演示数据包含 COMPLETED、CHECKED_IN、CANCELLED | 查询我的预约 | COMPLETED/CANCELLED 及原因正确展示，不再当作 RESERVED | 通过（接口+端到端） | mine-status-history |
+| TC-X6-020 | P2 | UI | 前端可运行 | 查看 V1.2 状态和教室/体育文案 | 状态文字、15 分钟规则、外部占用标签正确 | 未执行（浏览器工具表面超时） | 前端构建/代码审查 |
+
+> V1.2 补充用例已于 2026-11-10 补导 5 条（TC-X5-026~028、TC-X6-019~020），预览 5/5 通过；导入后 PingCode 测试库总数为 143（期间其他成员也在补充用例）。
+
 ## 5. 跨故事/工程测试用例
 
 | 用例ID | 优先级 | 类型 | 操作 | 预期结果 | 实际结果/状态 | 证据 |
 |---|---|---|---|---|---|---|
-| TC-CROSS-001 | P0 | 构建 | `mvn test`（H2） | 编译通过；36 个测试，0 失败，2 个 MySQL 专用并发测试跳过 | 通过 | H2 测试输出 |
-| TC-CROSS-002 | P0 | 数据库 | 在隔离 MySQL 8.0.44 执行 `mvn test` | 36 个测试，0 失败，0 跳过；并发用例执行 | 通过 | MySQL 测试输出 |
+| TC-CROSS-001 | P0 | 构建 | `mvn test`（H2） | 编译通过；37 个测试，0 失败，2 个 MySQL 专用并发测试跳过 | 通过 | H2 测试输出 |
+| TC-CROSS-002 | P0 | 数据库 | 在本地 MySQL 8.0.12 执行 `mvn test` | 37 个测试，0 失败，0 跳过；并发用例执行 | 通过 | MySQL 测试输出 |
 | TC-CROSS-003 | P1 | CI | 推送后运行 GitHub Actions | MySQL 8.4 service 上 `mvn verify`、前端 `npm ci && npm run build` 全绿 | 未执行（工作流已配置，未推送运行） | `.github/workflows/ci.yml` |
 | TC-CROSS-004 | P0 | 前端构建 | `npm run build` | `vue-tsc -b` 通过；Vite 构建成功 | 通过 | 45 个模块，构建成功 |
 | TC-CROSS-005 | P1 | 契约 | 检查成功/失败响应 | 统一 code/message/data/requestId；错误码稳定；HTTP 状态正确 | 通过 | 自动化 JSON 断言；端到端错误体 |
-| TC-CROSS-006 | P1 | 脚本 | 在 MySQL 8.0.44 执行 001/002 | 建表、6 个资源、42 条开放、1 条教学占用、5 条演示预约 | 通过 | 实际执行记录 |
+| TC-CROSS-006 | P1 | 脚本 | 在 MySQL 8.0.12 执行 001/002/003/004 | 7 张表、7 个资源、49 条开放、2 条占用、8 条演示预约、4 条事件、1 条违规 | 通过 | 实际执行记录 |
 | TC-CROSS-007 | P1 | 安全 | 扫描仓库真实密码 | 不含真实数据库密码；配置使用环境变量；演示密码仅为虚构账号 | 通过 | 本地扫描；`application.yml` 使用 `${CAMPUSSHARE_DB_PASSWORD:}` |
 | TC-CROSS-008 | P1 | 评审 | 另一名成员评审代码/契约/脚本 | 评审意见关闭；有评审记录 | 未执行（待 PR） | 待补 |
 | TC-CROSS-009 | P1 | GUI | 真实浏览器走登录→预约→列表→详情 | 主流程可用；无可见错误 | 阻塞（IAB 输入/截图表面超时；DOM 检查发现并修复 main.ts 未安装路由） | 不标记通过 |
@@ -99,9 +111,9 @@
 
 | 项目 | 结果 |
 |---|---|
-| 后端自动化（H2） | 36 个测试，0 失败、0 错误、2 跳过（MySQL 专用并发） |
-| 后端自动化（MySQL 8.0.44） | 36 个测试，0 失败、0 错误、0 跳过 |
-| 接口端到端 | 25 项检查全部通过（2026-11-02 执行；早于最后的锁定读修复，修复后未重跑，修复点由 MySQL 并发自动化用例覆盖） |
+| 后端自动化（H2） | 37 个测试，0 失败、0 错误、2 跳过（MySQL 专用并发） |
+| 后端自动化（MySQL 8.0.12） | 37 个测试，0 失败、0 错误、0 跳过 |
+| 接口端到端 | 26 项检查全部通过（主工程集成后的当前版本） |
 | 前端构建 | 通过（45 个模块） |
 | 真实浏览器点击走查 | 未完成（工具表面超时；已修复入口路由缺陷） |
 | GitHub Actions MySQL 8.4 | 未运行（工作流已提交） |
@@ -126,10 +138,10 @@
 - 严重级别：高（影响幂等与并发重复提交）
 - 关联用例：TC-X5-009
 - 现象：两个线程用同一用户、同一 `clientRequestId`、同一参数并发创建；一个成功，另一个返回 409 `RESERVATION_CONFLICT`，没有返回原预约。
-- 复现：MySQL 8.0.44，两个线程同时调用 `ReservationService.create`。
+- 复现：MySQL 8.0.12，两个线程同时调用 `ReservationService.create`。
 - 根因：MySQL 默认 REPEATABLE READ；等待资源锁之前执行过普通 `SELECT`，事务已建立旧快照；拿到资源锁后用普通 `SELECT` 重查幂等键，看不到另一个事务刚提交的预约。
 - 修复：新增 `ReservationMapper.lockByUserAndClientRequestId`，使用 `SELECT ... FOR UPDATE`；拿到资源锁后用锁定读重查 `user_id + client_request_id`。
-- 复测：`concurrentSameClientRequestIdReturnsOneReservation` 在 MySQL 8.0.44 通过；全量 36 个测试 0 失败、0 跳过。
+- 复测：`concurrentSameClientRequestIdReturnsOneReservation` 在 MySQL 8.0.12 通过；全量 37 个测试 0 失败、0 跳过。
 - 状态：已修复并复测通过；合并前仍需评审。
 
 ## 8. 待补/未关闭项

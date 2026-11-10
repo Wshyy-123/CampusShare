@@ -131,6 +131,7 @@ function typeLabel(type: string): string {
 
 function blockLabel(type: string): string {
   if (type === 'TEACHING') return '教学占用'
+  if (type === 'EXTERNAL' || type === 'SPORTS' || type === 'SPORTS_OCCUPANCY') return '外部占用'
   if (type === 'DISABLED') return '资源停用'
   return type
 }
@@ -161,7 +162,7 @@ onMounted(loadAvailability)
         {{ created.startTime.slice(0, 10) }} {{ timeLabel(created.startTime) }}–{{ timeLabel(created.endTime) }}
       </p>
       <p class="small">
-        预约号 {{ created.reservationId }}。座位请在确认后 30 分钟内到馆，体育场地请在开始后 15 分钟内签到。
+        预约号 {{ created.reservationId }}。座位请在确认后 30 分钟内到馆；教室和体育场地请在开始后 15 分钟内签到。
       </p>
       <div class="inline-actions">
         <RouterLink class="btn btn-primary" :to="`/reservations/${created.reservationId}`">查看预约详情</RouterLink>
@@ -257,8 +258,8 @@ onMounted(loadAvailability)
           <ul class="rule-list">
             <li>同一资源的重叠时段只能存在一个有效预约。</li>
             <li>教学占用、停用安排和开放时段外均不可预约。</li>
-            <li>座位预约成功后 30 分钟内确认到馆；体育场地开始后 15 分钟内签到。</li>
-            <li>当前流程无需审批，提交成功后状态为“已预约”。</li>
+            <li>座位预约成功后 30 分钟内确认到馆；教室和体育场地开始后 15 分钟内签到。</li>
+            <li>教室/体育正常结束由后台自动完成；图书馆座位离场刷卡立即完成释放。</li>
           </ul>
         </div>
       </aside>

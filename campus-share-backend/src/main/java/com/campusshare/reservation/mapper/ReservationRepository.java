@@ -8,7 +8,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 @Mapper
-public interface ReservationMapper {
+public interface ReservationRepository {
 
     ReservationRecord findByUserAndClientRequestId(@Param("userId") long userId,
                                                    @Param("clientRequestId") String clientRequestId);

@@ -38,18 +38,28 @@ Vue 3 + TypeScript + Vite、npm；Java 21 + Spring Boot 3.5.16 + MyBatis Starter
 
 ## XIA-5 / XIA-6 当前分支
 
-当前分支 `feature/XIA-5-XIA-6` 实现：
+当前分支 `feature/XIA-5-XIA-6` 已按 V1.2 合入主工程，实现：
 
 - **XIA-5 创建预约**：资源/日期/时段选择、开放与占用检查、冲突检查、`clientRequestId` 幂等、座位 30 分钟/教室与体育 15 分钟到馆期限。
 - **XIA-6 我的预约**：本人预约分页列表、状态筛选、空状态、预约详情与越权访问拒绝；展示 RESERVED、CHECKED_IN、COMPLETED、CANCELLED 及原因。
 
 相关文件：
 
-- `backend/`：当前预约切片的后端实现（按 V1.2 约定合入 `campus-share-backend/` 的工作项，见 PR 说明）。
-- `frontend/`：预约页面与请求封装。
+- `campus-share-backend/`：主后端，预约模块位于 `com.campusshare`，由主启动类统一扫描；数据库迁移见 `campus-share-backend/docs/database/003_xia5_xia6_core.sql` 和 `004_xia5_xia6_demo.sql`。
+- `frontend/`：预约页面与请求封装，默认代理到 8080；本机端口冲突可用 `VITE_API_PROXY_TARGET` 覆盖。
 - `docs/api/`：预约接口 OpenAPI。
-- `docs/database/`：全量参考建表与演示数据。
 - `docs/testing/`：测试计划、测试用例和 PingCode 导入文件。
 - `docs/verification/`：实际验证记录。
 
-本地数据库连接通过环境变量提供，不提交真实密码；本机 3306 已有 MySQL 时，测试库使用独立数据库名，避免覆盖他人的 `campusshare` 数据。
+启动与验证：
+
+```powershell
+cd campus-share-backend
+$env:JAVA_HOME = 'D:\Program Files\Java\jdk-21.0.9'
+$env:CAMPUSSHARE_DB_URL = 'jdbc:mysql://127.0.0.1:3306/campusshare?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true'
+$env:CAMPUSSHARE_DB_USERNAME = 'root'
+$env:CAMPUSSHARE_DB_PASSWORD = '你的本地密码'
+.\mvnw.cmd spring-boot:run
+```
+
+数据库脚本按 `001_schema.sql` → `002_demo_data.sql` → `003_xia5_xia6_core.sql` → `004_xia5_xia6_demo.sql` 顺序执行。真实密码只放本地环境变量，不提交仓库。

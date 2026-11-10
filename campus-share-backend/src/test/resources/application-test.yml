@@ -13,3 +13,7 @@ spring:
 campusshare:
   seat-no-show:
     enabled: false
+  sports-no-show:
+    enabled: false
+  legacy-checkin:
+    enabled: false

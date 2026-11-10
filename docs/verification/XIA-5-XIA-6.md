@@ -1,151 +1,161 @@
 # XIA-5 / XIA-6 验证记录
 
-- 执行日期：2026-11-02 至 2026-11-03（Asia/Shanghai）
-- 执行位置：`backend/`、`frontend/`（本地）
+- 执行日期：2026-11-02 至 2026-11-10（Asia/Shanghai）
+- 执行位置：`campus-share-backend/`、`frontend/`（本地）
 - 对应故事：XIA-5 创建预约；XIA-6 我的预约与详情
 - 关联测试计划/用例：`docs/testing/XIA-5-XIA-6-test-plan.md`、`docs/testing/XIA-5-XIA-6-test-cases.md`
-- 结论：后端自动化测试在 H2 与隔离 MySQL 8.0.44 上均通过；真实会话的 API 端到端检查全部通过；前端类型检查与生产构建通过。浏览器工具能渲染页面，但输入/截图表面超时，未能完成真实点击的完整 GUI 走查，详见“浏览器检查”。
+- 结论：预约模块已按 V1.2 合入主后端 `campus-share-backend/`；H2 与本地 MySQL 8.0.12 自动化测试通过；主后端 + 前端 + 真实 MySQL 的 26 项端到端检查全部通过。浏览器 GUI 点击仍受工具表面超时限制，未标记通过。
 
 ## 一、实际环境和命令
 
 | 项目 | 实际值 |
 |---|---|
 | JDK | Microsoft OpenJDK 21.0.9 |
-| Spring Boot | 3.5.16 |
-| MyBatis Starter | 3.0.5 |
-| Maven | 3.9.11（Wrapper 固定 3.9.9） |
-| Node / npm | Node 22.23.1 / npm 11.12.1 |
-| 默认测试库 | H2 2.x（MySQL 模式，内存） |
-| MySQL 联调库 | 隔离实例 MySQL 8.0.44，127.0.0.1:3307，测试库 `campusshare_test`、演示库 `campusshare` |
-| 前端 | Vue 3.5.44 + Vite 8.3.5 + TypeScript 6.0.3 |
+| Spring Boot / MyBatis | 3.5.16 / 3.0.5 |
+| 主后端 | `campus-share-backend/`，包 `org.campus.campussharebackend` + `com.campusshare` |
+| 默认测试库 | H2 2.x，MySQL 模式 |
+| 本地 MySQL | 127.0.0.1:3306，8.0.12；测试库 `campusshare_xia56_test`，演示库 `campusshare` |
+| 前端 | Node 22.23.1、Vue 3.5.44、Vite 8.3.5、TypeScript 6.0.3 |
+| 账号密码 | 通过本地环境变量/命令行传入，不写入仓库；文档不记录真实密码 |
 
 ```powershell
-# H2 测试
-cd backend
+cd campus-share-backend
 $env:JAVA_HOME = 'D:\Program Files\Java\jdk-21.0.9'
 .\mvnw.cmd test
 
-# 隔离 MySQL 8.0.44 测试（本机 3306 服务未启动，使用独立 3307 实例）
+# 本地 MySQL 8.0.12（独立测试库，不覆盖 campusshare）
 .\mvnw.cmd test `
-  -Dspring.datasource.url="jdbc:mysql://127.0.0.1:3307/campusshare_test?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true" `
+  -Dspring.datasource.url="jdbc:mysql://127.0.0.1:3306/campusshare_xia56_test?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true" `
   -Dspring.datasource.username=root `
-  -Dspring.datasource.password= `
+  -Dspring.datasource.password=你的本地密码 `
   -Dspring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
 
-# 前端
 cd ../frontend
 npm run build
 ```
+
+数据库脚本按顺序执行（`campus-share-backend/docs/database/`）：
+
+1. `001_schema.sql`
+2. `002_demo_data.sql`
+3. `003_xia5_xia6_core.sql`
+4. `004_xia5_xia6_demo.sql`
+
+`003` 扩展主工程原有表并新增开放、占用、预约历史结构；`004` 增加 V1.2 的教室、外部占用和状态演示数据。已在本地 MySQL 8.0.12 实际执行成功。
 
 ## 二、自动化测试结果
 
 | 运行 | 结果 |
 |---|---|
-| H2：`mvn test` | 36 个测试，0 失败、0 错误、2 跳过；跳过的是仅在 MySQL 执行的行锁并发测试 |
-| MySQL 8.0.44：`mvn test`（参数覆盖数据源） | 36 个测试，0 失败、0 错误、0 跳过；两个并发测试实际执行 |
-| 前端：`npm run build` | `vue-tsc -b` 通过；Vite 构建成功，45 个模块 |
+| H2：`mvn test` | **37 个测试，0 失败、0 错误、2 跳过**；跳过的是仅在 MySQL 执行的行锁并发测试 |
+| MySQL 8.0.12：`mvn test`（参数覆盖数据源） | **37 个测试，0 失败、0 错误、0 跳过**；两个并发测试实际执行 |
+| 前端：`npm run build` | `vue-tsc -b` 通过；Vite 构建成功 |
 
 测试类：
 
 - `AuthIntegrationTest`：会话登录、`/auth/me`、退出、错误密码、CSRF 缺失、匿名访问。
-- `ReservationCreateIntegrationTest`：创建成功并写事件、座位 30 分钟期限、体育 15 分钟期限、重叠冲突、幂等重放、幂等参数冲突、教学占用、开放时段外、资源停用、非法时间、开始=结束、缺少 clientRequestId、UTC 偏移转上海时间、未登录、并发重叠、并发同一 clientRequestId。
+- `ReservationCreateIntegrationTest`：座位/体育创建、座位 30 分钟、体育 15 分钟、重叠冲突、幂等重放/异参冲突、教学占用、外部占用、开放时段外、资源停用、非法时间、开始=结束、缺少 `clientRequestId`、UTC→上海、未登录、并发重叠、并发同一 `clientRequestId`。
 - `ReservationQueryIntegrationTest`：只返回本人、状态筛选、分页、时间筛选、空状态、本人详情、他人详情 404、不存在 404、非法状态/分页。
 - `ResourceIntegrationTest`：资源列表/筛选、指定日期开放/阻塞/已有预约、资源不存在、匿名访问。
+- `CampusShareBackendApplicationTests`：主工程上下文加载。
 
 关键断言：
 
-- 新建预约返回 201，状态 `RESERVED`，同时写入 `reservation_event(event_type='CREATED')`。
-- 同一 `clientRequestId` 同参重放返回 200 且为同一预约号；参数不同返回 409 `IDEMPOTENCY_CONFLICT`。
-- 座位 `arrival_deadline = accepted_at + 30 分钟`；体育 `arrival_deadline = start_at + 15 分钟`。
-- 两个用户并发提交同资源重叠时段：一个成功，另一个得到 409 `RESERVATION_CONFLICT`，数据库只保留一个有效占用。
-- 两个线程并发提交同一用户、同一 `clientRequestId`、同一参数：一个新建、一个重放，返回同一预约号，数据库只有一条记录。
+- 新建预约 201、状态 RESERVED，写 `reservation_event(CREATED)`。
+- 同 `clientRequestId` 同参重放 200 同一预约；异参 409 `IDEMPOTENCY_CONFLICT`。
+- 座位 `arrival_deadline = accepted_at + 30 分钟`；教室/体育 `start_at + 15 分钟`。
+- 两用户并发重叠：一个成功、一个 409，数据库只有一条有效占用。
+- 并发同一 `clientRequestId`：一个 NEW、一个 REPLAY，返回同一预约号。
+- 教学占用、体育外部占用、停用、非开放时段均 409 `RESOURCE_UNAVAILABLE`。
+- 本人列表不含他人记录；他人详情统一 404。
 
-### 2.1 本轮测试发现并修复的问题
+### 2.1 发现并修复的问题
 
-并发同一 `clientRequestId` 用例最初失败：一个请求成功，另一个得到 `RESERVATION_CONFLICT`。原因是 MySQL 默认 REPEATABLE READ 下，等待资源锁之前在事务中执行过的普通 `SELECT` 已经建立旧快照；拿到资源锁后用普通查询重查幂等键，看不到另一个事务刚提交的预约。
+1. **并发同一 `clientRequestId` 误报冲突**：MySQL REPEATABLE READ 下普通查询使用旧快照；改为拿到资源锁后用 `SELECT ... FOR UPDATE` 重查幂等键，MySQL 复测通过。对应 `ReservationRepository.lockByUserAndClientRequestId`。
+2. **主工程旧 `ReservationMapper` 与我们的 Mapper Bean 同名**：我们的 Mapper 改名为 `ReservationRepository`，XML namespace 同步；主启动类统一 `@MapperScan` 两个包。
+3. **主工程旧 `SportsTimeoutTask` 不符合 V1.2**：它按全部 RESERVED 扫描，可能误取消座位；加 `campusshare.sports-no-show.enabled`，默认关闭，待 XIA-9 负责人改为座位/教室/体育分类后再启用。
 
-修复：新增 `ReservationMapper.lockByUserAndClientRequestId`，SQL 使用 `FOR UPDATE`；创建预约在拿到资源锁后用该锁定读重查 `user_id + client_request_id`。修复后该用例在 MySQL 8.0.44 上通过。这个修复也说明了“冲突/幂等复核必须使用当前锁定读，不能依赖先前普通查询快照”的必要性。
-- 教学占用、停用资源、开放时段外均返回 409 `RESOURCE_UNAVAILABLE`。
-- 本人列表不含他人记录；他人预约详情统一返回 404 `RESERVATION_NOT_FOUND`，不泄露记录是否存在。
+## 三、主工程真实端到端联调
 
-## 三、真实会话端到端联调
-
-环境：隔离 MySQL 8.0.44 上的 `campusshare` 演示库；后端 8081；前端 Vite 5173；请求经 Vite `/api` 代理；使用演示账号和真实 Session + CSRF。
+环境：本地 MySQL 8.0.12 的 `campusshare` 演示库；主后端 8080；前端 Vite 5173；经 Vite `/api` 代理；真实 Session + CSRF。
 
 | 检查 | 实际结果 |
 |---|---|
-| CSRF 获取 | 200，返回 `X-XSRF-TOKEN` |
-| student01 登录 / `auth/me` | 200，身份为张三 / STUDENT |
-| 资源列表 | 6 条启用资源 |
-| 图书馆座位当天可约信息 | 1 条开放安排、1 条已有预约 |
-| 创建座位预约（空时段） | 201，状态 RESERVED |
-| 座位期限 | `acceptedAt` 到 `arrivalDeadline` 恰好 30 分钟 |
-| 同 clientRequestId 重放 | 200，返回同一预约号 |
-| 同资源重叠时段 | 409 `RESERVATION_CONFLICT` |
-| 同 clientRequestId 不同参数 | 409 `IDEMPOTENCY_CONFLICT` |
-| 教学占用时段 | 409 `RESOURCE_UNAVAILABLE` |
-| 开放时段外 | 409 `RESOURCE_UNAVAILABLE` |
-| 体育预约 | 201，`arrivalDeadline = start + 15 分钟` |
-| 我的预约 | 只含本人记录，同时出现 RESERVED / CHECKED_IN / CANCELLED 状态 |
+| CSRF 获取 / student01 登录 / `auth/me` | 通过；身份张三 / STUDENT |
+| 资源列表 | 7 个资源（座位、羽毛球、乒乓球、网球、教室） |
+| 座位 102 当天可约信息 | 1 条开放安排、已有演示预约 |
+| 座位 102 D+1 15:00–16:00 创建 | 201，RESERVED；期限 30 分钟 |
+| 同 `clientRequestId` 重放 | 200，同一预约号 |
+| student02 同资源重叠 | 409 `RESERVATION_CONFLICT` |
+| 同 `clientRequestId` 异参 | 409 `IDEMPOTENCY_CONFLICT` |
+| 教室 501 教学占用 10:30–11:30 | 409 `RESOURCE_UNAVAILABLE` |
+| 羽毛球 2 外部占用 18:30–19:30 | 409 `RESOURCE_UNAVAILABLE` |
+| 座位 102 06:00–07:00 | 409 `RESOURCE_UNAVAILABLE` |
+| 体育 202 预约 | 201；`arrivalDeadline = start + 15 分钟` |
+| 教室 501 D+2 预约 | 201；`arrivalDeadline = start + 15 分钟` |
+| 我的预约 | 只含本人；状态包含 RESERVED、CANCELLED、COMPLETED |
 | 本人详情 | 200 |
+| student02 查看 student01 预约 | 404 `RESERVATION_NOT_FOUND` |
 | 缺少 CSRF 写请求 | 403 `CSRF_INVALID` |
-| student02 查看 student01 的预约 | 404 `RESERVATION_NOT_FOUND` |
-| student02 我的预约 | 只含 student02 自己的记录 |
-| teacher01 我的预约 | 200，`items=[]`、`total=0`（空状态） |
+| teacher01 我的预约 | 200，`items=[]`、`total=0` |
 | 匿名访问我的预约 | 401 `AUTH_REQUIRED` |
 
-以上检查全部通过。
+以上 **26 项检查全部通过**，执行于主工程集成完成后的当前代码版本。
 
-> 说明：这 25 项真实会话端到端检查执行于 2026-11-02，早于 2026-11-03 的“锁定读重查幂等键”修复。修复后重新执行的是 MySQL 8.0.44 全量 36 个自动化测试（含新增的并发同一 `clientRequestId` 用例），没有重跑这 25 项 E2E。关键修复点已有自动化覆盖；若需要“最终版本 E2E”证据，应在推送前或 CI 后补跑一次。
+## 四、PingCode 用例库
 
-### 3.1 PingCode 用例库导入记录
+### 4.1 2026-11-03 已导入 43 条
 
-- 时间：2026-11-03；测试库：`XXC`（校享测试库）。
-- 方式：测试库“更多 → 导入 → 表格文件”，使用模板要求的表头；导入文件保存在 `docs/testing/XIA-5-XIA-6-test-cases-import.xlsx`。
-- 预览结果：**验证成功，本次共可导入 43 个用例**，未通过 0 条。
-- 导入后：测试库用例总数从 26 增加到 **69**；新增编号 **XXC-32 至 XXC-74**。
-  - XIA-5：XXC-32 至 XXC-56，共 25 条。
-  - XIA-6：XXC-57 至 XXC-74，共 18 条。
-- 导入时“模块”列留空，且未勾选“自动创建新模块”，因此新增用例落在“无模块用例”（62 条 = 原有 19 条 + 新增 43 条）。如需按 XIA-5/XIA-6 分模块，可在用例库中新建模块后批量移动，或带模块名和编号重新导入覆盖。
-- 11 条跨故事/工程用例（TC-CROSS-*）没有导入 PingCode，保留在 `docs/testing/XIA-5-XIA-6-test-cases.md` 作为工程检查记录。
+- 测试库 `XXC`；“更多 → 导入 → 表格文件”；预览 43/43 通过，0 未通过。
+- 导入后总数 26 → 69；新增编号 **XXC-32 – XXC-74**。
+  - XIA-5：XXC-32 – XXC-56（25 条）。
+  - XIA-6：XXC-57 – XXC-74（18 条）。
+- 模块列留空，新增用例位于“无模块用例”；未勾选“自动创建新模块”。
+- 导入文件：`docs/testing/XIA-5-XIA-6-test-cases-import.xlsx`。
 
-## 四、验收标准对照
+### 4.2 V1.2 新增用例补导（2026-11-10）
+
+- 导入文件：`docs/testing/XIA-5-XIA-6-V1.2-new-cases-import.xlsx`（5 条）。
+- 用例：TC-X5-026 教室预约创建成功、TC-X5-027 教室教学占用被拒绝、TC-X5-028 体育外部占用被拒绝、TC-X6-019 COMPLETED 状态展示、TC-X6-020 V1.2 状态与教室体育文案。
+- 预览验证：**5/5 通过，0 未通过**；导入后测试库总数 **138 → 143**（期间其他成员也在补充用例）。
+- 本次未逐条记录新增 XXC 编号；页面可按标题搜索确认。
+- 跨故事/工程用例（TC-CROSS-*）保留在文档中，未导入 PingCode。
+
+## 五、验收标准对照
 
 ### XIA-5
 
 | AC | 覆盖方式 | 结果 |
 |---|---|---|
-| 1. 选择开放、未占用、符合规则的时段，提交后生成归属该用户的有效预约，可查询结果，无需审批 | 创建成功测试 + 端到端创建/查询；状态为 RESERVED，无审批字段或步骤 | 通过 |
-| 2. 同一资源已有有效预约时，另一用户提交重叠预约应拒绝，不产生第二个有效占用 | `rejectsOverlappingReservationFromAnotherUser` + 端到端冲突检查 | 通过 |
-| 3. 同一资源重叠时段并发提交，最多一个成功，其他得到冲突 | MySQL 8.0.44 上的 `concurrentOverlappingRequestsLeaveAtMostOneActiveReservation` | 通过 |
-| 4. 资源停用、教学占用或不开放时拒绝，不能因客户端显示滞后而接受 | `rejectsDisabledResource`、`rejectsTeachingBlock`、`rejectsTimeOutsideOpening` + 端到端检查 | 通过 |
+| 1. 开放、未占用、符合规则时段创建有效预约并可查询 | 创建成功测试 + 端到端座位/体育/教室创建 | 通过 |
+| 2. 重叠预约拒绝，不产生第二个有效占用 | `rejectsOverlappingReservationFromAnotherUser` + 端到端 | 通过 |
+| 3. 并发重叠最多一个成功 | MySQL 8.0.12 上的并发测试 | 通过 |
+| 4. 停用、教学占用、外部占用或不开放时拒绝 | 对应测试 + 端到端 | 通过 |
 
 ### XIA-6
 
 | AC | 覆盖方式 | 结果 |
 |---|---|---|
-| 1. 登录用户查看我的预约，只展示本人有权查看的预约及资源、时段、状态 | `listsOnlyOwnReservations...`、`anotherUserSeesOnlyTheirOwnReservation`、端到端 my-only-own | 通过 |
-| 2. 预约取消、确认到馆或超时处理后，再次查询展示处理后的结果 | 演示数据包含 CANCELLED(NO_SHOW/USER_CANCEL)、CHECKED_IN；`filtersByStatus` 与端到端状态集合检查 | 通过 |
-| 3. 用户没有预约时显示暂无预约记录 | `emptyStateReturnsEmptyItems` + teacher01 端到端空列表；前端 `MyReservationsView` 有“暂无预约记录”空状态 | 通过（接口与前端分支） |
-| 4. 普通用户访问他人预约时拒绝，不泄露记录 | `cannotReadAnotherUsersReservation` + 端到端 404；实现统一返回 RESERVATION_NOT_FOUND | 通过 |
+| 1. 只展示本人预约及资源、时段、状态 | 列表隔离测试 + 端到端 | 通过 |
+| 2. 取消/到馆/正常结束后展示处理结果 | 演示数据包含 CANCELLED、CHECKED_IN、COMPLETED；端到端状态集合 | 通过 |
+| 3. 无预约显示空状态 | 空列表测试 + teacher01 端到端 | 通过 |
+| 4. 访问他人预约被拒绝且不泄露 | 他人详情 404 + 不存在 404 | 通过 |
 
-## 五、浏览器检查
+## 六、浏览器检查
 
-- 首次用真实浏览器打开 `http://127.0.0.1:5173` 时，页面只渲染页头/页脚，主区域为空，URL 停在 `/`。
-- DOM 检查发现入口 `src/main.ts` 仍是脚手架的旧版本（`createApp(App).mount('#app')`），没有安装 Vue Router，页面上残留未解析的 `<routerlink>`/`<routerview>` 元素。
-- 修复为 `createApp(App).use(router).mount('#app')` 并加入 401 统一处理之后，页面正确跳转到 `/login?redirect=/resources`，登录表单、演示账号和页头/页脚均正常渲染。
-- 之后尝试用浏览器工具点击登录，Playwright 点击持续超时；截图返回 `browser screenshot surface preparation timed out after 3000ms`。这是当前 IAB 工具表面不可用的限制，不是页面报错；因此没有完成登录→资源→预约→详情的真实点击走查，也没有可用的可视化截图证据。**不把 GUI 走查标记为通过。**
-- 建议在浏览器工具恢复后补做：登录、资源列表、预约提交成功、冲突提示、我的预约列表/空状态、详情页、手机窄屏布局。
+- 早先在 IAB 中检查登录页时，发现 `frontend/src/main.ts` 仍是脚手架旧入口，没有安装 Vue Router；修复后 `/login?redirect=/resources` 正常渲染。
+- IAB 的输入/截图表面持续超时（`browser screenshot surface preparation timed out`），因此没有完成登录→预约→我的预约的真实点击走查，也没有可视化截图证据；**GUI 不标记通过**。
+- 建议工具恢复后补做：登录、资源列表、座位/教室/体育预约、冲突/占用提示、我的预约状态、详情、手机窄屏。
 
-## 六、已知限制与未执行项
+## 七、已知限制与未执行项
 
-1. `auth` 是 XIA-1 落地前的最小会话登录，不是 XIA-1 的完整交付；正式登录、角色入口、会话过期和会话固定防护仍需 XIA-1 负责人替换/加固。
-2. `resources` 是 XIA-4 的临时只读依赖，正式资源查询和可约接口应由 XIA-4 负责人替换。
-3. 本地真实 MySQL 为 8.0.44；团队基线是 8.4 LTS。已提交 GitHub Actions（MySQL 8.4 service）配置，但本次未在 GitHub 上实际运行。
-4. 未实现 XIA-7 取消、XIA-8 签到/签退、XIA-11 座位超时任务；XIA-11/14 只接入了创建预约所需的 `ResourceAvailabilityGuard` 及期限规则。
-5. 未执行移动端真机检查、未执行 XIA-5/6 的 PingCode 验收标准逐条人工演示（AC 文本已按用户提供内容实现并映射）。
-6. 未合并到 `main`，未请求另一名成员评审；PR 尚待创建。
+1. `auth` 是 XIA-1 落地前的最小会话登录；`resources` 是 XIA-4 的临时只读依赖。
+2. 主工程旧的 `CheckInController` 仍使用 `userId` 查询参数，不符合 V1.2 的会话身份+地点码要求；已通过 `campusshare.legacy-checkin.enabled=false` 默认关闭，待 XIA-8 负责人改造。
+3. 旧 `SportsTimeoutTask` 已默认关闭，等待 XIA-9 负责人按资源类型改造。
+4. 本地 MySQL 为 8.0.12，低于团队基线 8.4；GitHub Actions（MySQL 8.4）配置已更新，但尚未实际运行。
+5. 未执行真实手机/二维码/刷卡硬件验证；未完成另一名成员评审；未推送/合并到 main。
+6. V1.2 新增测试用例尚未重新导入 PingCode；GUI 点击走查仍受工具限制。
 
-## 七、AI 使用记录
+## 八、AI 使用记录
 
-本次使用 ZCode 阅读三份协作约定、XIA-9/10 与 XIA-11/14 分支、生成后端/前端代码、数据库脚本、OpenAPI、测试和 CI 配置，并在本机执行 H2、MySQL 8.0.44、真实会话端到端检查和前端构建。浏览器 DOM 检查发现并修复了 `main.ts` 未安装路由的问题。所有实际结果以上文为准；未把模拟数据、接口检查或工具未完成的操作写成已通过。
+本次使用 ZCode 阅读 V1.2 业务规则、AGENTS.md、开发同步说明和主工程代码，执行 main 合并、将预约模块接入 `campus-share-backend/`、修复 Mapper 冲突、补充 003/004 数据库迁移、更新前端文案和接口显示，并在本机 H2、MySQL 8.0.12 和真实前后端环境执行测试。所有实际结果以上文为准；未把未执行或工具阻塞的检查写成已通过。
