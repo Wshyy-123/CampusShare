@@ -85,5 +85,17 @@ export function useCampus() {
       (await run(() => service.reserve(...args))) ?? false,
     addOccupancy: async (...args: Parameters<typeof service.addOccupancy>) =>
       (await run(() => service.addOccupancy(...args))) ?? false,
+    loadSchedules: async (...args: Parameters<typeof service.loadSchedules>) =>
+      (await run(async () => {
+        await service.loadSchedules(...args);
+        return true;
+      })) ?? false,
+    createSchedule: async (...args: Parameters<typeof service.createSchedule>) =>
+      (await run(() => service.createSchedule(...args))) ?? false,
+    updateSchedule: async (
+      ...args: Parameters<typeof service.updateSchedule>
+    ) => (await run(() => service.updateSchedule(...args))) ?? false,
+    deleteSchedule: async (...args: Parameters<typeof service.deleteSchedule>) =>
+      (await run(() => service.deleteSchedule(...args))) ?? false,
   };
 }

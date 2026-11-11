@@ -31,6 +31,7 @@ CREATE TABLE resource_opening (
     resource_id BIGINT NOT NULL,
     start_at TIMESTAMP(3) NOT NULL,
     end_at TIMESTAMP(3) NOT NULL,
+    note VARCHAR(200) NULL,
     CONSTRAINT fk_test_opening_resource FOREIGN KEY (resource_id) REFERENCES resource (id)
 );
 

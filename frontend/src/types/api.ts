@@ -79,3 +79,30 @@ export interface CreateReservationPayload {
   endTime: string;
   clientRequestId: string;
 }
+
+export type ScheduleType = "OPEN" | "TEACHING";
+
+export interface Schedule {
+  scheduleId: string;
+  resourceId: string;
+  resourceName: string;
+  type: ScheduleType;
+  startTime: string;
+  endTime: string;
+  note: string;
+}
+
+export interface ScheduleCreatePayload {
+  resourceId: string;
+  type: ScheduleType;
+  startTime: string;
+  endTime: string;
+  note?: string;
+}
+
+export interface ScheduleUpdatePayload {
+  type: ScheduleType;
+  startTime: string;
+  endTime: string;
+  note?: string;
+}

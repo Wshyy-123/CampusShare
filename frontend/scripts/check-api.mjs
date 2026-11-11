@@ -209,6 +209,22 @@ try {
       }
       return success(result);
     }
+    if (path === "/api/v1/admin/schedules" && options.method === "GET") {
+      return success([]);
+    }
+    if (path.includes("/openings") || path.includes("/teaching-blocks")) {
+      // 学生账号在服务端应被拒绝；这里按 403 返回，验证前端只读边界不把写操作当成功。
+      return new Response(
+        JSON.stringify({ code: "FORBIDDEN", message: "无权限维护时段安排" }),
+        { status: 403 },
+      );
+    }
+    if (path.match(/^\/api\/v1\/admin\/schedules\/\d+$/)) {
+      return new Response(
+        JSON.stringify({ code: "FORBIDDEN", message: "无权限维护时段安排" }),
+        { status: 403 },
+      );
+    }
     throw new Error(`unhandled test URL ${url}`);
   };
   const auth = await server.ssrLoadModule("/src/stores/auth.ts");
@@ -262,6 +278,18 @@ try {
   assert.equal(campus.state.scheduleWritable, false);
   assert.equal(
     await campus.addOccupancy(largeId, dateAfter(1), 16, 17, "EXTERNAL", ""),
+    false,
+  );
+  await campus.loadSchedules(dateAfter(1), largeId);
+  assert.deepEqual(campus.state.schedules, []);
+  assert.equal(
+    await campus.createSchedule({
+      resourceId: largeId,
+      type: "TEACHING",
+      startTime: `${dateAfter(1)}T10:00:00+08:00`,
+      endTime: `${dateAfter(1)}T12:00:00+08:00`,
+      note: "学生尝试占用",
+    }),
     false,
   );
   console.log(

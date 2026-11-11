@@ -11,7 +11,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         "org.campus.campussharebackend.mapper",
         "org.campus.campussharebackend.auth.mapper",
         "org.campus.campussharebackend.resource.mapper",
-        "org.campus.campussharebackend.reservation.mapper"
+        "org.campus.campussharebackend.reservation.mapper",
+        "org.campus.campussharebackend.schedule.mapper"
 })
 public class CampusShareBackendApplication {
 

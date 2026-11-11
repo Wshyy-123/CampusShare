@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.campus.campussharebackend.schedule.mapper.ScheduleRepository">
+
+    <select id="list" resultType="org.campus.campussharebackend.schedule.entity.ScheduleRow">
+        SELECT o.id, o.resource_id, 'OPEN' AS type,
+               o.start_at, o.end_at, o.note, r.name AS resource_name
+        FROM resource_opening o
+        JOIN resource r ON r.id = o.resource_id
+        WHERE o.start_at &lt; #{dayEnd}
+          AND o.end_at &gt; #{dayStart}
+        <if test="resourceId != null">
+            AND o.resource_id = #{resourceId}
+        </if>
+        UNION ALL
+        SELECT b.id, b.resource_id, 'TEACHING' AS type,
+               b.start_at, b.end_at, b.reason, r.name AS resource_name
+        FROM resource_block b
+        JOIN resource r ON r.id = b.resource_id
+        WHERE b.block_type = 'TEACHING'
+          AND b.start_at &lt; #{dayEnd}
+          AND b.end_at &gt; #{dayStart}
+        <if test="resourceId != null">
+            AND b.resource_id = #{resourceId}
+        </if>
+        ORDER BY start_at, id
+    </select>
+
+    <select id="findOpening" resultType="org.campus.campussharebackend.resource.entity.OpeningRecord">
+        SELECT id, resource_id, start_at, end_at, note
+        FROM resource_opening
+        WHERE id = #{id}
+    </select>
+
+    <select id="findTeachingBlock" resultType="org.campus.campussharebackend.resource.entity.BlockRecord">
+        SELECT id, resource_id, block_type, start_at, end_at, reason
+        FROM resource_block
+        WHERE id = #{id}
+          AND block_type = 'TEACHING'
+    </select>
+
+    <insert id="insertOpening" parameterType="org.campus.campussharebackend.resource.entity.OpeningRecord"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO resource_opening (resource_id, start_at, end_at, note)
+        VALUES (#{resourceId}, #{startAt}, #{endAt}, #{note})
+    </insert>
+
+    <insert id="insertTeachingBlock" parameterType="org.campus.campussharebackend.resource.entity.BlockRecord"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO resource_block (resource_id, block_type, start_at, end_at, reason)
+        VALUES (#{resourceId}, 'TEACHING', #{startAt}, #{endAt}, #{reason})
+    </insert>
+
+    <update id="updateOpening">
+        UPDATE resource_opening
+        SET start_at = #{startAt}, end_at = #{endAt}, note = #{note}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateTeachingBlock">
+        UPDATE resource_block
+        SET start_at = #{startAt}, end_at = #{endAt}, reason = #{reason}
+        WHERE id = #{id}
+          AND block_type = 'TEACHING'
+    </update>
+
+    <delete id="deleteOpening">
+        DELETE FROM resource_opening WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteTeachingBlock">
+        DELETE FROM resource_block WHERE id = #{id} AND block_type = 'TEACHING'
+    </delete>
+
+    <select id="countOverlappingOpening" resultType="long">
+        SELECT COUNT(*)
+        FROM resource_opening
+        WHERE resource_id = #{resourceId}
+          AND start_at &lt; #{end}
+          AND end_at &gt; #{start}
+        <if test="excludeId != null">
+            AND id &lt;&gt; #{excludeId}
+        </if>
+    </select>
+
+    <select id="countOverlappingTeaching" resultType="long">
+        SELECT COUNT(*)
+        FROM resource_block
+        WHERE resource_id = #{resourceId}
+          AND block_type = 'TEACHING'
+          AND start_at &lt; #{end}
+          AND end_at &gt; #{start}
+        <if test="excludeId != null">
+            AND id &lt;&gt; #{excludeId}
+        </if>
+    </select>
+</mapper>

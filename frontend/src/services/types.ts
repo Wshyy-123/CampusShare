@@ -1,4 +1,9 @@
 import type { Booking, Occupancy, Space } from "../types/campus";
+import type {
+  Schedule,
+  ScheduleCreatePayload,
+  ScheduleUpdatePayload,
+} from "../types/api";
 
 export type DataMode = "demo" | "api";
 export interface TimeSlot {
@@ -18,6 +23,7 @@ export interface CampusState {
   resources: Space[];
   bookings: Booking[];
   occupancy: Occupancy[];
+  schedules: Schedule[];
   loading: boolean;
   error: string;
   ready: boolean;
@@ -48,4 +54,11 @@ export interface CampusService {
     kind: Occupancy["kind"],
     note: string,
   ): Promise<boolean>;
+  loadSchedules(date: string, resourceId?: string): Promise<void>;
+  createSchedule(payload: ScheduleCreatePayload): Promise<boolean>;
+  updateSchedule(
+    scheduleId: string,
+    payload: ScheduleUpdatePayload,
+  ): Promise<boolean>;
+  deleteSchedule(scheduleId: string): Promise<boolean>;
 }

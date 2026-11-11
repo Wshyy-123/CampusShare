@@ -1,6 +1,7 @@
 import { reactive } from "vue";
 import { resourcesApi } from "./resources";
 import { reservationsApi } from "./reservations";
+import { schedulesApi } from "./schedules";
 import { HttpError } from "./http";
 import { localDate } from "../utils/presentation";
 import type {
@@ -8,6 +9,9 @@ import type {
   Resource,
   Reservation,
   Interval,
+  Schedule,
+  ScheduleCreatePayload,
+  ScheduleUpdatePayload,
 } from "../types/api";
 import type { Booking, Space, SpaceKind } from "../types/campus";
 import type {
@@ -50,6 +54,26 @@ function interval(value: Interval) {
   instant(value.startTime);
   instant(value.endTime);
   requireValue(Date.parse(value.startTime) < Date.parse(value.endTime));
+}
+function scheduleToState(value: unknown): Schedule {
+  requireValue(value && typeof value === "object");
+  const v = value as Record<string, unknown>;
+  id(v.scheduleId);
+  id(v.resourceId);
+  instant(v.startTime);
+  instant(v.endTime);
+  requireValue(["OPEN", "TEACHING"].includes(v.type as string));
+  requireValue(typeof v.resourceName === "string");
+  requireValue(v.note === null || typeof v.note === "string");
+  return {
+    scheduleId: v.scheduleId,
+    resourceId: v.resourceId,
+    resourceName: v.resourceName,
+    type: v.type as Schedule["type"],
+    startTime: v.startTime,
+    endTime: v.endTime,
+    note: v.note ?? "",
+  };
 }
 export function resourceToSpace(value: Resource, variant = 1): Space {
   requireValue(value && typeof value === "object");
@@ -108,6 +132,7 @@ export function createApiCampusService(
     resources: [],
     bookings: [],
     occupancy: [],
+    schedules: [],
     loading: false,
     ready: false,
     error: "",
@@ -132,6 +157,7 @@ export function createApiCampusService(
       resources: [],
       bookings: [],
       occupancy: [],
+      schedules: [],
       ready: false,
       loading: false,
       error: "",
@@ -378,6 +404,31 @@ export function createApiCampusService(
     notify("预约已由后端确认，可在“我的预约”查看。");
     return true;
   }
+  async function loadSchedules(date: string, resourceId?: string): Promise<void> {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
+      throw new HttpError("INVALID_ARGUMENT", "请选择有效日期");
+    const result = await schedulesApi.list({ date, resourceId });
+    requireValue(Array.isArray(result));
+    state.schedules = result.map(scheduleToState);
+  }
+  async function createSchedule(payload: ScheduleCreatePayload): Promise<boolean> {
+    await schedulesApi.create(payload);
+    notify("时段安排已由后端保存。");
+    return true;
+  }
+  async function updateSchedule(
+    scheduleId: string,
+    payload: ScheduleUpdatePayload,
+  ): Promise<boolean> {
+    await schedulesApi.update(scheduleId, payload);
+    notify("时段安排已由后端更新。");
+    return true;
+  }
+  async function deleteSchedule(scheduleId: string): Promise<boolean> {
+    await schedulesApi.remove(scheduleId);
+    notify("时段安排已由后端删除。");
+    return true;
+  }
   return {
     mode: "api",
     state,
@@ -394,5 +445,9 @@ export function createApiCampusService(
         "占用维护写接口尚未接入，当前只能查看服务端占用",
       );
     },
+    loadSchedules,
+    createSchedule,
+    updateSchedule,
+    deleteSchedule,
   };
 }
