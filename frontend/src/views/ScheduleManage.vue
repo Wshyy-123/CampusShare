@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch, onMounted } from "vue";
 import AppIcon from "../components/common/AppIcon.vue";
 import { localDate, formatHour } from "../utils/presentation";
 import { useCampus } from "../composables/useCampus";
 import type { Occupancy } from "../types/campus";
 
-const { state, addOccupancy } = useCampus();
+const { state, isDemo, addOccupancy, loadAvailability } = useCampus();
 const spaces = computed(() => state.resources);
 const submitting = ref(false);
 const date = ref(localDate());
-const resourceFilter = ref(0);
+const resourceFilter = ref("");
 const formDialog = ref<HTMLDialogElement | null>(null);
-const formResource = ref(0);
+const formResource = ref("");
 const formDate = ref(localDate());
 const formStart = ref(12);
 const formEnd = ref(14);
@@ -35,6 +35,14 @@ const records = computed(() =>
       space: spaces.value.find((s) => s.id === p.resourceId)!,
     })),
 );
+async function refreshOccupancy() {
+  if (!isDemo)
+    await Promise.all(
+      spaces.value.map((space) => loadAvailability(space.id, date.value)),
+    );
+}
+onMounted(refreshOccupancy);
+watch([date, () => state.resources], refreshOccupancy);
 function openForm() {
   formResource.value =
     spaces.value.find((space) => space.kind === "CLASSROOM" && !space.disabled)
@@ -86,17 +94,27 @@ async function submit() {
   <div class="section-heading">
     <div>
       <h2>占用时段管理</h2>
-      <p class="muted">管理员界面预览 · 无真实权限和数据库操作</p>
+      <p class="muted">
+        {{
+          isDemo
+            ? "管理员界面预览 · 无真实权限和数据库操作"
+            : "当前仅可查看服务端占用，维护写接口尚未接入"
+        }}
+      </p>
     </div>
-    <button class="button primary" :disabled="!state.ready" @click="openForm">
+    <button
+      class="button primary"
+      :disabled="!state.ready || !state.scheduleWritable"
+      @click="openForm"
+    >
       <AppIcon name="plus" :size="18" />新增模拟占用
     </button>
   </div>
   <div class="admin-toolbar panel">
     <label>查看日期<input v-model="date" class="input" type="date" /></label
     ><label
-      >预约资源<select v-model.number="resourceFilter" class="input">
-        <option :value="0">全部资源</option>
+      >预约资源<select v-model="resourceFilter" class="input">
+        <option value="">全部资源</option>
         <option v-for="space in spaces" :key="space.id" :value="space.id">
           {{ space.name }}
         </option>
@@ -132,7 +150,9 @@ async function submit() {
             {{ formatHour(record.start) }}—{{ formatHour(record.end) }}
           </td>
           <td>{{ record.note }}</td>
-          <td><span class="muted">本地演示</span></td>
+          <td>
+            <span class="muted">{{ isDemo ? "本地演示" : "主后端" }}</span>
+          </td>
         </tr>
         <tr v-if="!records.length">
           <td colspan="5" class="table-empty">
@@ -179,7 +199,7 @@ async function submit() {
         仅更新本次页面内的演示数据，刷新后重置。
       </p>
       <label class="form-field"
-        >预约资源<select v-model.number="formResource" class="input">
+        >预约资源<select v-model="formResource" class="input">
           <option v-for="space in spaces" :key="space.id" :value="space.id">
             {{ space.name }}
           </option>
@@ -233,7 +253,7 @@ async function submit() {
         ><button
           class="button primary"
           type="submit"
-          :disabled="submitting || !state.ready"
+          :disabled="submitting || !state.ready || !state.scheduleWritable"
         >
           添加演示占用
         </button>

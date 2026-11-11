@@ -1,14 +1,16 @@
 // 前端展示模型；SPORTS 是界面分组，不替代后端具体资源类型。
-export type SpaceKind = "LIBRARY_SEAT" | "CLASSROOM" | "SPORTS";
+export type SpaceKind =
+  "LIBRARY_SEAT" | "CLASSROOM" | "SPORTS" | "DISCUSSION_ROOM";
 export type BookingState =
   "RESERVED" | "CHECKED_IN" | "COMPLETED" | "CANCELLED";
 export interface Space {
-  id: number;
+  id: string;
   name: string;
   code: string;
   kind: SpaceKind;
+  resourceType?: string;
   location: string;
-  capacity: number;
+  capacity?: number;
   tags: string[];
   open: number;
   close: number;
@@ -16,8 +18,8 @@ export interface Space {
   variant: number;
 }
 export interface Occupancy {
-  id: number;
-  resourceId: number;
+  id: string;
+  resourceId: string;
   date: string;
   start: number;
   end: number;
@@ -25,10 +27,13 @@ export interface Occupancy {
   note: string;
 }
 export interface Booking {
-  id: number;
-  resourceId: number;
+  id: string;
+  resourceId: string;
   date: string;
   start: number;
   end: number;
   state: BookingState;
+  startTime?: string;
+  endTime?: string;
+  arrivalDeadline?: string | null;
 }

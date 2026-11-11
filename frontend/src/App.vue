@@ -1,14 +1,41 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
 import AppIcon from "./components/common/AppIcon.vue";
-import { useCampus } from "./composables/useCampus";
+import { useCampus, notify } from "./composables/useCampus";
+import { authState, logout, roleLabel } from "./stores/auth";
+import { useRouter } from "vue-router";
 
 const { state, activeBookings, isDemo, initialize } = useCampus();
-onMounted(initialize);
+onMounted(() => {
+  if (isDemo || authState.user) void initialize();
+});
 const route = useRoute();
 const scopeDialog = ref<HTMLDialogElement | null>(null);
-import { navigationPages as nav } from "./config/pages";
+import { navigationPages } from "./config/pages";
+const campus = useCampus();
+const router = useRouter();
+const signingOut = ref(false);
+const nav = computed(() =>
+  navigationPages.filter(
+    (page) =>
+      isDemo ||
+      !("roles" in page) ||
+      (authState.user && page.roles?.includes(authState.user.role)),
+  ),
+);
+async function signOut() {
+  signingOut.value = true;
+  try {
+    await logout();
+    campus.reset();
+    await router.replace("/login");
+  } catch (error) {
+    notify(error instanceof Error ? error.message : "退出失败，请重试");
+  } finally {
+    signingOut.value = false;
+  }
+}
 </script>
 
 <template>
@@ -23,7 +50,7 @@ import { navigationPages as nav } from "./config/pages";
       <nav class="main-nav" aria-label="主导航">
         <RouterLink v-for="item in nav" :key="item.to" :to="item.to"
           ><AppIcon :name="item.icon" /><span>{{ item.label }}</span
-          ><span v-if="item.to === '/bookings'" class="nav-count">{{
+          ><span v-if="isDemo && item.to === '/bookings'" class="nav-count">{{
             activeBookings.length
           }}</span></RouterLink
         >
@@ -54,18 +81,41 @@ import { navigationPages as nav } from "./config/pages";
         </div>
         <div class="profile">
           <span class="profile-name"
-            >{{ isDemo ? "演示访客" : "身份未接入" }}
-            <small>{{ isDemo ? "学生视角" : "接口模式" }}</small></span
-          ><span class="avatar">访</span>
+            >{{
+              isDemo ? "演示访客" : (authState.user?.displayName ?? "未登录")
+            }}
+            <small>{{
+              isDemo
+                ? "学生视角"
+                : authState.user
+                  ? roleLabel(authState.user.role)
+                  : "接口模式"
+            }}</small></span
+          ><span class="avatar">{{
+            isDemo ? "访" : (authState.user?.displayName?.slice(0, 1) ?? "客")
+          }}</span
+          ><button
+            v-if="!isDemo && authState.user"
+            class="button secondary session-button"
+            :disabled="signingOut"
+            @click="signOut"
+          >
+            {{ signingOut ? "退出中…" : "退出" }}</button
+          ><RouterLink
+            v-else-if="!isDemo && route.path !== '/login'"
+            class="button secondary session-button"
+            to="/login"
+            >登录</RouterLink
+          >
         </div>
       </header>
       <div class="demo-banner">
         <span class="demo-dot" /><span
-          ><strong>{{ isDemo ? "前端交互演示" : "真实接口接入模式" }}</strong
+          ><strong>{{ isDemo ? "前端交互演示" : "后端接口模式" }}</strong
           ><span class="banner-extra">{{
             isDemo
               ? " · 当前为模拟数据，未连接后端"
-              : " · 禁止用模拟数据代替接口结果"
+              : " · 登录与预约以服务端结果为准"
           }}</span></span
         ><button @click="scopeDialog?.showModal()">
           查看说明 <AppIcon name="arrow" :size="14" />
@@ -75,7 +125,7 @@ import { navigationPages as nav } from "./config/pages";
         <div v-if="state.error" class="inline-note" role="alert">
           {{ state.error }}
         </div>
-        <RouterView />
+        <RouterView :key="route.path" />
       </main>
       <footer class="page-footer">
         <span>CampusShare / 共享校园的每一种可能</span
@@ -111,7 +161,7 @@ import { navigationPages as nav } from "./config/pages";
         </button>
       </div>
       <p class="muted">
-        这是主前端新增的交互预览，帮助理解产品流程。所有场地、时段和预约均为本地样例，不代表学校实际安排。
+        本地演示模式使用内存样例；后端接口模式连接主后端，登录及预约会读写数据库。学校教务、场馆与账号种子数据用于课程模拟，不代表学校实际安排。
       </p>
       <div class="scope-item">
         <AppIcon name="check" />
@@ -127,12 +177,12 @@ import { navigationPages as nav } from "./config/pages";
         <div>
           <strong>尚未联调</strong>
           <p>
-            真实登录、数据库持久化、扫码签到、刷卡到离场、并发预约及后台自动释放。演示操作不会调用这些接口。
+            扫码签到、刷卡到离场、占用维护写接口及后台自动释放尚未接入本界面。接口模式已接入主后端的登录、资源可用性与本人预约；真实学校教务和校园卡仍为模拟接入范围。
           </p>
         </div>
       </div>
       <p class="inline-note">
-        演示预约与占用仅保存在当前页面内存，刷新即重置。这里的管理入口用于展示，不表示已实现管理员权限。
+        演示模式数据只在当前页面内存；接口模式的预约写入后端数据库。真实管理页按服务端身份显示，当前仅可查看占用，不能维护。
       </p>
       <button class="button primary full-width" @click="scopeDialog?.close()">
         开始浏览

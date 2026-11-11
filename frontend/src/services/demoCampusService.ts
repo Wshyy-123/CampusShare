@@ -14,26 +14,30 @@ export function createDemoCampusService(
     loading: false,
     error: "",
     ready: true,
+    scheduleWritable: true,
+    bookingTotal: 3,
+    bookingPage: 1,
+    bookingPageSize: 10,
     bookings: [
       {
-        id: 1001,
-        resourceId: 2,
+        id: "1001",
+        resourceId: "2",
         date: today,
         start: 18,
         end: 20,
         state: "RESERVED",
       },
       {
-        id: 1002,
-        resourceId: 1,
+        id: "1002",
+        resourceId: "1",
         date: today,
         start: 9,
         end: 12,
         state: "CHECKED_IN",
       },
       {
-        id: 1003,
-        resourceId: 6,
+        id: "1003",
+        resourceId: "6",
         date: today,
         start: 8,
         end: 9,
@@ -42,8 +46,8 @@ export function createDemoCampusService(
     ] as Booking[],
     occupancy: [
       {
-        id: 1,
-        resourceId: 2,
+        id: "1",
+        resourceId: "2",
         date: today,
         start: 8,
         end: 12,
@@ -51,8 +55,8 @@ export function createDemoCampusService(
         note: "模拟教务课表 · 软件工程课程",
       },
       {
-        id: 2,
-        resourceId: 3,
+        id: "2",
+        resourceId: "3",
         date: today,
         start: 14,
         end: 16,
@@ -60,8 +64,8 @@ export function createDemoCampusService(
         note: "模拟场馆占用 · 社团训练",
       },
       {
-        id: 3,
-        resourceId: 6,
+        id: "3",
+        resourceId: "6",
         date: today,
         start: 10,
         end: 12,
@@ -69,8 +73,8 @@ export function createDemoCampusService(
         note: "模拟体育教学占用",
       },
       {
-        id: 4,
-        resourceId: 1,
+        id: "4",
+        resourceId: "1",
         date: today,
         start: 18,
         end: 19,
@@ -81,7 +85,7 @@ export function createDemoCampusService(
     notice: "",
   });
 
-  function blocks(resourceId: number, date: string) {
+  function blocks(resourceId: string, date: string) {
     return [
       ...state.occupancy
         .filter((p) => p.resourceId === resourceId && p.date === date)
@@ -102,7 +106,7 @@ export function createDemoCampusService(
     ];
   }
 
-  function slots(resourceId: number, date: string) {
+  function slots(resourceId: string, date: string) {
     const space = state.resources.find((s) => s.id === resourceId);
     if (!space || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
     return Array.from({ length: space.close - space.open }, (_, i) => {
@@ -120,7 +124,7 @@ export function createDemoCampusService(
   }
 
   async function reserve(
-    resourceId: number,
+    resourceId: string,
     date: string,
     start: number,
   ): Promise<boolean> {
@@ -133,7 +137,7 @@ export function createDemoCampusService(
       return false;
     }
     state.bookings.unshift({
-      id: ++nextDemoId,
+      id: String(++nextDemoId),
       resourceId,
       date,
       start,
@@ -145,7 +149,7 @@ export function createDemoCampusService(
   }
 
   async function addOccupancy(
-    resourceId: number,
+    resourceId: string,
     date: string,
     start: number,
     end: number,
@@ -177,7 +181,7 @@ export function createDemoCampusService(
       return false;
     }
     state.occupancy.push({
-      id: ++nextDemoId,
+      id: String(++nextDemoId),
       resourceId,
       date,
       start,
@@ -193,6 +197,10 @@ export function createDemoCampusService(
     mode: "demo",
     state,
     load: async () => {},
+    reset: () => {},
+    loadBookings: async () => {
+      state.bookingTotal = state.bookings.length;
+    },
     loadAvailability: async () => {},
     blocks,
     slots,

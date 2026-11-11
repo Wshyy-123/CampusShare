@@ -11,10 +11,11 @@ npm.cmd run dev -- --host 127.0.0.1 --port 5173 --strictPort
 
 打开http://127.0.0.1:5173/resources。主页面另有/bookings和/admin/schedules。
 
-默认demo，常驻模拟数据提示，刷新重置。复制.env.example到.env.local可设置VITE_DATA_MODE；api模式当前明确返回未接入，不使用样例伪装真实结果。
+默认demo，常驻模拟数据提示，刷新重置。复制.env.example到.env.local可设置VITE_DATA_MODE；api模式连接主后端的登录、资源查询、创建预约和本人记录；失败不回退样例。启动后端和SQL步骤见[预约模块接入说明](../docs/校享CampusShare_预约模块接入说明_2026-11-11.md)。
 
 ```powershell
 npm.cmd run check:baseline
+npm.cmd run check:api
 npm.cmd run build
 ```
 

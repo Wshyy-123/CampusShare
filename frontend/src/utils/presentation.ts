@@ -2,6 +2,7 @@ export const kindLabels = {
   LIBRARY_SEAT: "图书馆座位",
   CLASSROOM: "空闲教室",
   SPORTS: "体育场所",
+  DISCUSSION_ROOM: "图书馆讨论室",
 };
 export const stateLabels = {
   RESERVED: "待签到",
@@ -23,10 +24,27 @@ export function localDate(date = new Date()): string {
 }
 
 export function formatHour(hour: number): string {
-  return `${String(Math.floor(hour)).padStart(2, "0")}:${hour % 1 ? "30" : "00"}`;
+  const minutes = Math.round(hour * 60);
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+export function dateAfter(days: number): string {
+  return localDate(
+    new Date(Date.parse(`${localDate()}T12:00:00+08:00`) + days * 86400000),
+  );
+}
+export function formatDateTime(iso: string): string {
+  const date = localDate(new Date(iso));
+  const minutes =
+    (Date.parse(iso) - Date.parse(`${date}T00:00:00+08:00`)) / 60000;
+  return `${date} ${formatHour(minutes / 60)}`;
 }
 
 export const rules = {
+  DISCUSSION_ROOM: [
+    "按整间讨论室预约，最晚在使用日期前一自然日提交。",
+    "当天不能预约当天；不套用座位30分钟或教室/体育15分钟签到规则。",
+  ],
   LIBRARY_SEAT: [
     "预约成功起 30 分钟内模拟刷卡入场。",
     "不支持主动取消；入场后刷卡离场立即结束并释放座位。",

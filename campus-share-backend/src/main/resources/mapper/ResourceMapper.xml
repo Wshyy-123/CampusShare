@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.campus.campussharebackend.resource.mapper.ResourceMapper">
+
+    <select id="list" resultType="org.campus.campussharebackend.resource.entity.ResourceRecord">
+        SELECT id, name, location, resource_type, unit_label, enabled
+        FROM resource
+        WHERE enabled = TRUE
+        <if test="resourceType != null and resourceType != ''">
+            AND resource_type = #{resourceType}
+        </if>
+        <if test="location != null and location != ''">
+            AND location LIKE CONCAT('%', #{location}, '%')
+        </if>
+        ORDER BY resource_type, name, id
+    </select>
+
+    <select id="findById" resultType="org.campus.campussharebackend.resource.entity.ResourceRecord">
+        SELECT id, name, location, resource_type, unit_label, enabled
+        FROM resource
+        WHERE id = #{id}
+    </select>
+
+    <select id="findCoveringOpening" resultType="org.campus.campussharebackend.resource.entity.OpeningRecord">
+        SELECT id, resource_id, start_at, end_at
+        FROM resource_opening
+        WHERE resource_id = #{resourceId}
+          AND start_at &lt;= #{start}
+          AND end_at &gt;= #{end}
+        ORDER BY start_at
+        LIMIT 1
+    </select>
+
+    <select id="lockCoveringOpening" resultType="org.campus.campussharebackend.resource.entity.OpeningRecord">
+        SELECT id, resource_id, start_at, end_at
+        FROM resource_opening
+        WHERE resource_id = #{resourceId}
+          AND start_at &lt;= #{start}
+          AND end_at &gt;= #{end}
+        ORDER BY start_at
+        LIMIT 1
+        FOR UPDATE
+    </select>
+
+    <select id="lockOpenings" resultType="org.campus.campussharebackend.resource.entity.OpeningRecord">
+        SELECT id,resource_id,start_at,end_at FROM resource_opening
+        WHERE resource_id=#{resourceId} AND start_at &lt; #{end} AND end_at &gt; #{start}
+        ORDER BY start_at,id FOR UPDATE
+    </select>
+
+    <select id="listOpeningsForDate" resultType="org.campus.campussharebackend.resource.entity.OpeningRecord">
+        SELECT id, resource_id, start_at, end_at
+        FROM resource_opening
+        WHERE resource_id = #{resourceId}
+          AND start_at &lt; #{dayEnd}
+          AND end_at &gt; #{dayStart}
+        ORDER BY start_at
+    </select>
+
+    <select id="listBlocksForDate" resultType="org.campus.campussharebackend.resource.entity.BlockRecord">
+        SELECT id, resource_id, block_type, start_at, end_at, reason
+        FROM resource_block
+        WHERE resource_id = #{resourceId}
+          AND start_at &lt; #{dayEnd}
+          AND end_at &gt; #{dayStart}
+        ORDER BY start_at
+    </select>
+
+    <select id="listActiveReservationsForDate" resultType="org.campus.campussharebackend.resource.entity.ReservationSlot">
+        SELECT id, start_at, end_at, status
+        FROM reservation
+        WHERE resource_id = #{resourceId}
+          AND status IN ('RESERVED', 'CHECKED_IN')
+          AND start_at &lt; #{dayEnd}
+          AND end_at &gt; #{dayStart}
+        ORDER BY start_at
+    </select>
+</mapper>

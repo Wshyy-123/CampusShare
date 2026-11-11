@@ -1,0 +1,198 @@
+openapi: 3.0.3
+info:
+  title: CampusShare XIA-5 依赖资源读取接口
+  version: 0.1.0
+  description: |
+    这是 XIA-4 正式资源查询/可约接口落地前的临时只读依赖，仅覆盖 XIA-5 预约页面所需的
+    资源列表、资源详情和指定日期的开放/占用信息。XIA-4 交付后应替换本文件与实现，避免维护两套契约。
+servers:
+  - url: /api/v1
+security:
+  - sessionCookie: []
+paths:
+  /resources:
+    get:
+      operationId: listResources
+      summary: 查询启用中的资源
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [LIBRARY_SEAT, BADMINTON, TABLE_TENNIS, TENNIS, DISCUSSION_ROOM, CLASSROOM]
+        - name: location
+          in: query
+          schema:
+            type: string
+          description: 位置模糊匹配
+      responses:
+        '200':
+          description: 资源列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceListResponse'
+        '401':
+          description: 未登录（AUTH_REQUIRED）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /resources/{resourceId}:
+    get:
+      operationId: getResource
+      summary: 资源详情
+      parameters:
+        - name: resourceId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[1-9][0-9]*$'
+      responses:
+        '200':
+          description: 资源详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceResponse'
+        '404':
+          description: 资源不存在（RESOURCE_NOT_FOUND）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /resources/{resourceId}/availability:
+    get:
+      operationId: getResourceAvailability
+      summary: 指定日期的开放、阻塞和已有预约
+      parameters:
+        - name: resourceId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[1-9][0-9]*$'
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: 省略时使用服务端当天（Asia/Shanghai）
+      responses:
+        '200':
+          description: 当天安排；openings/blocks/reservations 可能为空
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityResponse'
+        '404':
+          description: 资源不存在（RESOURCE_NOT_FOUND）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+  schemas:
+    Resource:
+      type: object
+      required: [resourceId, name, location, resourceType, unitLabel, enabled]
+      properties:
+        resourceId: {type: string}
+        name: {type: string}
+        location: {type: string}
+        resourceType: {type: string}
+        unitLabel: {type: string}
+        enabled: {type: boolean}
+    Interval:
+      type: object
+      required: [startTime, endTime]
+      properties:
+        startTime: {type: string, format: date-time}
+        endTime: {type: string, format: date-time}
+    Block:
+      allOf:
+        - $ref: '#/components/schemas/Interval'
+        - type: object
+          required: [blockType, reason]
+          properties:
+            blockType: {type: string, enum: [TEACHING, EXTERNAL, DISABLED]}
+            reason: {type: string}
+    ReservationSlot:
+      allOf:
+        - $ref: '#/components/schemas/Interval'
+        - type: object
+          required: [reservationId, status]
+          properties:
+            reservationId: {type: string}
+            status: {type: string}
+    Availability:
+      type: object
+      required: [resource, date, openings, blocks, reservations, availablePeriods]
+      properties:
+        resource:
+          $ref: '#/components/schemas/Resource'
+        date: {type: string, format: date}
+        openings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Interval'
+        blocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Block'
+        reservations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReservationSlot'
+        availablePeriods:
+          type: array
+          description: 服务端按半开区间计算的可用时段，合并相邻开放区间，排除教学/外部/维护/有效预约及已过时段。停用资源为空。提交时仍在事务内重验。
+          items:
+            $ref: '#/components/schemas/Interval'
+    ResourceListResponse:
+      type: object
+      required: [code, message, data, requestId]
+      properties:
+        code: {type: string, enum: [OK]}
+        message: {type: string}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Resource'
+        requestId: {type: string}
+    ResourceResponse:
+      type: object
+      required: [code, message, data, requestId]
+      properties:
+        code: {type: string, enum: [OK]}
+        message: {type: string}
+        data:
+          $ref: '#/components/schemas/Resource'
+        requestId: {type: string}
+    AvailabilityResponse:
+      type: object
+      required: [code, message, data, requestId]
+      properties:
+        code: {type: string, enum: [OK]}
+        message: {type: string}
+        data:
+          $ref: '#/components/schemas/Availability'
+        requestId: {type: string}
+    Error:
+      type: object
+      required: [code, message, data, requestId]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        data: {nullable: true}
+        requestId: {type: string}

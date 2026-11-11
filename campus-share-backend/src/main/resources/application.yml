@@ -1,15 +1,33 @@
 server:
-  port: 8080
+  port: ${CAMPUSSHARE_PORT:8080}
+  error:
+    include-message: never
 
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/campusshare?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-    username: root
-    password: 20050122BABA  # 👈 这里改成你 MySQL 的 root 密码
+    url: ${CAMPUSSHARE_DB_URL:jdbc:mysql://localhost:3306/campusshare?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    username: ${CAMPUSSHARE_DB_USERNAME:root}
+    password: ${CAMPUSSHARE_DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
+  jackson:
+    time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
 
-# MyBatis 配置（解决刚才那个黄色警告）
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   configuration:
     map-underscore-to-camel-case: true
+
+campusshare:
+  seat-no-show:
+    # XIA-11 的座位超时任务在独立模块中，默认关闭；接入后按共享调度启用。
+    enabled: false
+  sports-no-show:
+    # 原 XIA-9 任务按全部 RESERVED 扫描，不符合 V1.2 按资源类型处理的要求；
+    # 在 XIA-9 负责人改为座位/教室/体育分类前默认关闭，避免误取消座位预约。
+    enabled: false
+  legacy-checkin:
+    # 原 XIA-9/10 的 /api/v1/library 演示入口仍信任请求 userId，默认关闭；
+    # 待 XIA-8 改为会话身份 + 地点码后替换。
+    enabled: false

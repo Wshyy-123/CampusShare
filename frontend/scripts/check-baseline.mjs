@@ -41,26 +41,43 @@ try {
   const date = localDate();
   const demo = createDemoCampusService();
   assert.equal(demo.state.resources.length, 6);
-  assert.deepEqual(demo.slots(2, ""), []);
-  assert.equal(await demo.reserve(2, date, 9), false, "teaching conflict");
-  assert.equal(await demo.reserve(3, date, 14), false, "external conflict");
-  assert.equal(await demo.reserve(1, date, 18), false, "maintenance conflict");
-  assert.equal(await demo.reserve(5, date, 12), false, "disabled resource");
-  assert.equal(await demo.reserve(2, date, 18), false, "existing reservation");
-  assert.equal(await demo.reserve(2, date, 12), true);
-  assert.equal(await demo.reserve(2, date, 12), false, "duplicate");
+  assert.deepEqual(demo.slots("2", ""), []);
+  assert.equal(await demo.reserve("2", date, 9), false, "teaching conflict");
+  assert.equal(await demo.reserve("3", date, 14), false, "external conflict");
   assert.equal(
-    demo.slots(2, date).find((s) => s.start === 13).available,
+    await demo.reserve("1", date, 18),
+    false,
+    "maintenance conflict",
+  );
+  assert.equal(await demo.reserve("5", date, 12), false, "disabled resource");
+  assert.equal(
+    await demo.reserve("2", date, 18),
+    false,
+    "existing reservation",
+  );
+  assert.equal(await demo.reserve("2", date, 12), true);
+  assert.equal(await demo.reserve("2", date, 12), false, "duplicate");
+  assert.equal(
+    demo.slots("2", date).find((s) => s.start === 13).available,
     true,
     "adjacent boundary",
   );
-  assert.equal(await demo.addOccupancy(2, date, 12, 14, "TEACHING", ""), false);
-  assert.equal(await demo.addOccupancy(2, date, 13, 14, "TEACHING", ""), true);
   assert.equal(
-    demo.slots(2, date).find((s) => s.start === 13).available,
+    await demo.addOccupancy("2", date, 12, 14, "TEACHING", ""),
     false,
   );
-  assert.equal(await demo.addOccupancy(2, date, 14, 13, "TEACHING", ""), false);
+  assert.equal(
+    await demo.addOccupancy("2", date, 13, 14, "TEACHING", ""),
+    true,
+  );
+  assert.equal(
+    demo.slots("2", date).find((s) => s.start === 13).available,
+    false,
+  );
+  assert.equal(
+    await demo.addOccupancy("2", date, 14, 13, "TEACHING", ""),
+    false,
+  );
   console.log(
     "PASS: demo exclusions, conflicts, adjacent intervals and shared occupancy",
   );
@@ -112,7 +129,7 @@ try {
   );
   const campus = useCampus();
   await campus.initialize();
-  assert.equal(await campus.reserve(2, date, 12), true);
+  assert.equal(await campus.reserve("2", date, 12), true);
   const App = (await server.ssrLoadModule("/src/App.vue")).default;
   const { navigationPages } = await server.ssrLoadModule(
     "/src/config/pages.ts",
@@ -165,13 +182,13 @@ try {
   assert.equal(api.isDemo, false);
   await api.initialize();
   assert.equal(api.state.ready, false);
-  assert.ok(api.state.error.includes("真实接口尚未接入"));
+  assert.ok(api.state.error.includes("无法连接"));
   assert.deepEqual(api.state.resources, []);
   assert.deepEqual(api.state.bookings, []);
-  assert.equal(await api.reserve(2, "2099-01-01", 12), false);
-  assert.deepEqual(api.slots(2, "2099-01-01"), []);
+  assert.equal(await api.reserve("2", "2099-01-01", 12), false);
+  assert.deepEqual(api.slots("2", "2099-01-01"), []);
   console.log(
-    "PASS: api mode remains empty/unavailable and never falls back to demo",
+    "PASS: offline API mode stays unavailable and never falls back to demo",
   );
 } finally {
   await apiRuntime.close();

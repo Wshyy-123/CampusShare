@@ -19,6 +19,7 @@ export const navigationPages = [
     name: "schedules",
     label: "时段管理",
     icon: "settings",
+    roles: ["RESOURCE_ADMIN"],
     component: () => import("../views/ScheduleManage.vue"),
   },
 ];

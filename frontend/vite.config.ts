@@ -6,9 +6,10 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8080', // 把带有 /api 的请求转发给你的后端
+        // 主后端默认 8080；本机端口被占用时可用 VITE_API_PROXY_TARGET 覆盖。
+        target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:8080',
         changeOrigin: true,
-      }
-    }
-  }
+      },
+    },
+  },
 })

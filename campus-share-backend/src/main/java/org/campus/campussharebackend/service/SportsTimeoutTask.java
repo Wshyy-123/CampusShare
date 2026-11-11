@@ -5,12 +5,14 @@ import org.campus.campussharebackend.entity.ViolationRecord;
 import org.campus.campussharebackend.mapper.ReservationMapper;
 import org.campus.campussharebackend.mapper.ViolationRecordMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 @Component
+@ConditionalOnProperty(name = "campusshare.sports-no-show.enabled", havingValue = "true", matchIfMissing = true)
 public class SportsTimeoutTask {
 
     @Autowired

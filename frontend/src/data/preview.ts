@@ -3,7 +3,7 @@ import type { Space } from "../types/campus";
 // 本地展示样例，不读取或写入学校资源、账号及预约数据。
 export const spaces: Space[] = [
   {
-    id: 1,
+    id: "1",
     name: "图书馆 · 靠窗 A12",
     code: "LIB-A12",
     kind: "LIBRARY_SEAT",
@@ -15,7 +15,7 @@ export const spaces: Space[] = [
     variant: 1,
   },
   {
-    id: 2,
+    id: "2",
     name: "教学楼 · 301 教室",
     code: "CLS-301",
     kind: "CLASSROOM",
@@ -27,7 +27,7 @@ export const spaces: Space[] = [
     variant: 2,
   },
   {
-    id: 3,
+    id: "3",
     name: "体育馆 · 羽毛球 2 号场",
     code: "BDM-02",
     kind: "SPORTS",
@@ -39,7 +39,7 @@ export const spaces: Space[] = [
     variant: 3,
   },
   {
-    id: 4,
+    id: "4",
     name: "图书馆 · 自习 A16",
     code: "LIB-A16",
     kind: "LIBRARY_SEAT",
@@ -51,7 +51,7 @@ export const spaces: Space[] = [
     variant: 4,
   },
   {
-    id: 5,
+    id: "5",
     name: "教学楼 · 208 教室",
     code: "CLS-208",
     kind: "CLASSROOM",
@@ -64,7 +64,7 @@ export const spaces: Space[] = [
     variant: 5,
   },
   {
-    id: 6,
+    id: "6",
     name: "北体育馆 · 乒乓球 3 号桌",
     code: "TBL-03",
     kind: "SPORTS",

@@ -1,0 +1,65 @@
+name: ci
+
+on:
+  push:
+    branches: [main, 'feature/**']
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: campusshare_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Backend tests on MySQL 8.4
+        working-directory: campus-share-backend
+        run: |
+          chmod +x mvnw
+          ./mvnw -B verify \
+            -Dspring.datasource.url="jdbc:mysql://127.0.0.1:3306/campusshare_test?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true" \
+            -Dspring.datasource.username=root \
+            -Dspring.datasource.password=root \
+            -Dspring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+      - name: Apply numbered migrations on isolated MySQL
+        working-directory: campus-share-backend
+        run: |
+          docker exec ${{ job.services.mysql.id }} mysql -uroot -proot -e "CREATE DATABASE campusshare CHARACTER SET utf8mb4"
+          for migration in docs/datebase/00*.sql; do
+            docker exec -i ${{ job.services.mysql.id }} mysql -uroot -proot --init-command="SET time_zone='+08:00'" < "$migration"
+          done
+          nullable=$(docker exec ${{ job.services.mysql.id }} mysql -uroot -proot -N -e "SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='campusshare' AND TABLE_NAME='reservation' AND COLUMN_NAME='arrival_deadline'")
+          test "$nullable" = "YES"
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run check:baseline
+          npm run check:api
+          npm run build

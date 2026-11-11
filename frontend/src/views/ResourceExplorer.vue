@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useRouter } from "vue-router";
+import { useRouter, RouterLink } from "vue-router";
 import AppIcon from "../components/common/AppIcon.vue";
 import SpaceScene from "../components/visual/SpaceScene.vue";
 import {
@@ -8,6 +8,7 @@ import {
   localDate,
   formatHour,
   rules,
+  dateAfter,
 } from "../utils/presentation";
 import { useCampus } from "../composables/useCampus";
 import type { Space, SpaceKind } from "../types/campus";
@@ -39,7 +40,10 @@ const availableCount = computed(
 const filtered = computed(() =>
   spaces.value.filter(
     (space) =>
-      (selectedKind.value === "ALL" || space.kind === selectedKind.value) &&
+      (selectedKind.value === "ALL" ||
+        space.kind === selectedKind.value ||
+        (selectedKind.value === "LIBRARY_SEAT" &&
+          space.kind === "DISCUSSION_ROOM")) &&
       `${space.name} ${space.location} ${space.tags.join(" ")}`
         .toLowerCase()
         .includes(keyword.value.trim().toLowerCase()) &&
@@ -69,7 +73,9 @@ watch([date, () => state.resources], async () => {
   );
 });
 async function openDetail(space: Space) {
-  await loadAvailability(space.id, date.value);
+  if (space.kind === "DISCUSSION_ROOM" && date.value <= localDate())
+    date.value = dateAfter(1);
+  if (!(await loadAvailability(space.id, date.value))) return;
   selectedSpace.value = space;
   chosenHour.value = null;
   detailDialog.value?.showModal();
@@ -143,7 +149,7 @@ function freeLabel(space: Space) {
       <span class="summary-icon violet"><AppIcon name="grid" /></span>
       <div>
         <strong>{{ spaces.length.toString().padStart(2, "0") }}</strong
-        ><span>精选演示资源</span>
+        ><span>{{ isDemo ? "精选演示资源" : "可查询资源" }}</span>
       </div>
     </div>
     <div>
@@ -191,7 +197,12 @@ function freeLabel(space: Space) {
           }}<span>{{
             category.id === "ALL"
               ? spaces.length
-              : spaces.filter((s) => s.kind === category.id).length
+              : spaces.filter(
+                  (s) =>
+                    s.kind === category.id ||
+                    (category.id === "LIBRARY_SEAT" &&
+                      s.kind === "DISCUSSION_ROOM"),
+                ).length
           }}</span>
         </button>
       </div>
@@ -229,7 +240,8 @@ function freeLabel(space: Space) {
             class="scene-category"
             ><AppIcon
               :name="
-                space.kind === 'LIBRARY_SEAT'
+                space.kind === 'LIBRARY_SEAT' ||
+                space.kind === 'DISCUSSION_ROOM'
                   ? 'book'
                   : space.kind === 'CLASSROOM'
                     ? 'classroom'
@@ -285,7 +297,11 @@ function freeLabel(space: Space) {
     <AppIcon name="info" :size="16" />
     <p>
       提前查看占用安排，让每一次出发都不扑空。<span>
-        当前资源与占用均为演示样例。</span
+        {{
+          isDemo
+            ? "当前资源与占用均为演示样例。"
+            : "当前资源、占用与预约来自主后端。"
+        }}</span
       >
     </p>
   </div>
@@ -303,10 +319,18 @@ function freeLabel(space: Space) {
     <template v-if="selectedSpace"
       ><div class="modal-heading">
         <div>
-          <span class="eyebrow">SPACE DETAILS · 演示数据</span>
+          <span class="eyebrow">{{
+            isDemo ? "SPACE DETAILS · 演示数据" : "SPACE DETAILS · 服务端数据"
+          }}</span>
           <h2 id="detail-title">{{ selectedSpace.name }}</h2>
           <p class="muted">
-            {{ selectedSpace.location }} · {{ selectedSpace.capacity }} 人{{
+            {{ selectedSpace.location }} ·
+            {{
+              selectedSpace.capacity
+                ? `${selectedSpace.capacity} 人`
+                : "容量以场地说明为准"
+            }}
+            {{
               selectedSpace.kind === "LIBRARY_SEAT" ? "独立座位" : "使用空间"
             }}
           </p>
@@ -328,8 +352,19 @@ function freeLabel(space: Space) {
           type="date"
           :min="localDate()"
         /><span class="muted"
-          >开放 {{ formatHour(selectedSpace.open) }}—{{
-            formatHour(selectedSpace.close)
+          >{{
+            selectedSpace.close > selectedSpace.open ? "开放" : "当日未开放"
+          }}
+          {{
+            selectedSpace.close > selectedSpace.open
+              ? formatHour(selectedSpace.open)
+              : ""
+          }}
+          {{ selectedSpace.close > selectedSpace.open ? "—" : ""
+          }}{{
+            selectedSpace.close > selectedSpace.open
+              ? formatHour(selectedSpace.close)
+              : ""
           }}</span
         >
       </div>
@@ -337,15 +372,15 @@ function freeLabel(space: Space) {
         <h3>当日占用一览</h3>
         <span class="muted">{{ date }}</span>
       </div>
-      <div class="timeline-track" aria-label="8时至22时时段占用">
+      <div class="timeline-track" aria-label="0时至24时时段占用">
         <div
           v-for="block in detailBlocks"
           :key="`${block.style}-${block.id}`"
           class="time-segment"
           :class="block.style"
           :style="{
-            left: `${((block.start - 8) / 14) * 100}%`,
-            width: `${((block.end - block.start) / 14) * 100}%`,
+            left: `${(block.start / 24) * 100}%`,
+            width: `${((block.end - block.start) / 24) * 100}%`,
           }"
           :title="`${block.label} ${formatHour(block.start)}—${formatHour(block.end)}`"
         >
@@ -356,7 +391,7 @@ function freeLabel(space: Space) {
         </div>
       </div>
       <div class="timeline-ticks">
-        <span v-for="hour in [8, 10, 12, 14, 16, 18, 20, 22]" :key="hour">{{
+        <span v-for="hour in [0, 4, 8, 12, 16, 20, 24]" :key="hour">{{
           formatHour(hour)
         }}</span>
       </div>
@@ -375,8 +410,20 @@ function freeLabel(space: Space) {
         }}
       </p>
       <p v-else class="inline-note">该资源当天暂无可约时段。</p>
+      <RouterLink
+        v-if="!isDemo && !selectedSpace.disabled"
+        class="button secondary"
+        :to="`/resources/${selectedSpace.id}/reserve`"
+        @click="detailDialog?.close()"
+        >打开完整预约表单<AppIcon name="arrow" :size="16"
+      /></RouterLink>
       <h3 class="slot-heading">
-        选择一个时段 <small>按 1 小时展示，仅用于交互演示</small>
+        选择一个快捷时段
+        <small>{{
+          isDemo
+            ? "按 1 小时展示，仅用于交互演示"
+            : "快捷预约 1 小时；也可使用完整预约表单"
+        }}</small>
       </h3>
       <div class="slot-grid">
         <button
@@ -402,7 +449,11 @@ function freeLabel(space: Space) {
         </div>
       </div>
       <div class="modal-actions">
-        <span class="muted">仅创建本地演示记录，不向后端提交。</span
+        <span class="muted">{{
+          isDemo
+            ? "仅创建本地演示记录，不向后端提交。"
+            : "提交后由后端再次校验身份、开放与预约冲突。"
+        }}</span
         ><button
           class="button primary"
           :disabled="chosenHour === null || submitting || !state.ready"

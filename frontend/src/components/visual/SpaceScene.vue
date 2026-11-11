@@ -90,7 +90,7 @@ defineProps<{ kind: SpaceKind; variant: number }>();
       />
     </g>
     <g
-      v-else-if="kind === 'CLASSROOM'"
+      v-else-if="kind === 'CLASSROOM' || kind === 'DISCUSSION_ROOM'"
       stroke="currentColor"
       stroke-width="1.1"
     >
