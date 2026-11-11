@@ -137,7 +137,7 @@ components:
             status: {type: string}
     Availability:
       type: object
-      required: [resource, date, openings, blocks, reservations]
+      required: [resource, date, openings, blocks, reservations, availablePeriods]
       properties:
         resource:
           $ref: '#/components/schemas/Resource'
@@ -154,6 +154,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ReservationSlot'
+        availablePeriods:
+          type: array
+          description: 服务端按半开区间计算的可用时段，合并相邻开放区间，排除教学/外部/维护/有效预约及已过时段。停用资源为空。提交时仍在事务内重验。
+          items:
+            $ref: '#/components/schemas/Interval'
     ResourceListResponse:
       type: object
       required: [code, message, data, requestId]

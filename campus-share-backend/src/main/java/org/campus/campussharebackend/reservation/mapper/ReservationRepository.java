@@ -40,6 +40,6 @@ public interface ReservationRepository {
                                   @Param("status") String status,
                                   @Param("from") LocalDateTime from,
                                   @Param("to") LocalDateTime to,
-                                  @Param("offset") int offset,
+                                  @Param("offset") long offset,
                                   @Param("size") int size);
 }

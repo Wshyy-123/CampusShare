@@ -16,6 +16,7 @@ import org.campus.campussharebackend.reservation.vo.ReservationVO;
 import org.campus.campussharebackend.resource.entity.ResourceRecord;
 import org.campus.campussharebackend.resource.mapper.ResourceMapper;
 import java.time.Clock;
+import org.campus.campussharebackend.resource.service.AvailabilityCalculator;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -84,10 +85,17 @@ public class ReservationService {
         }
 
         ResourceRecord resource = requireResource(resourceId);
+        LocalDateTime now = TimeFormats.now(clock);
+        if (start.isBefore(now)) {
+            throw new BusinessException(400, "INVALID_ARGUMENT", "不能预约已经开始的时段");
+        }
+        if ("DISCUSSION_ROOM".equals(resource.getResourceType()) && !start.toLocalDate().isAfter(now.toLocalDate())) {
+            throw new BusinessException(400, "INVALID_ARGUMENT", "讨论室须最晚在使用日期前一自然日预约");
+        }
         if (!resource.isEnabled()) {
             throw new BusinessException(409, "RESOURCE_UNAVAILABLE", "资源已停用");
         }
-        if (resourceMapper.lockCoveringOpening(resourceId, start, end) == null) {
+        if (!AvailabilityCalculator.covers(resourceMapper.lockOpenings(resourceId, start, end), start, end)) {
             throw new BusinessException(409, "RESOURCE_UNAVAILABLE", "该时段不在资源开放安排内");
         }
         List<ReservationRecord> conflicts = reservationMapper.lockConflicts(resourceId, start, end);
@@ -95,7 +103,6 @@ public class ReservationService {
             throw new BusinessException(409, "RESERVATION_CONFLICT", "该时段已被其他预约占用");
         }
 
-        LocalDateTime now = TimeFormats.now(clock);
         ReservationRecord record = new ReservationRecord();
         record.setUserId(user.userId());
         record.setResourceId(resourceId);
@@ -111,7 +118,7 @@ public class ReservationService {
         try {
             reservationMapper.insert(record);
         } catch (DuplicateKeyException exception) {
-            ReservationRecord duplicate = reservationMapper.findByUserAndClientRequestId(
+            ReservationRecord duplicate = reservationMapper.lockByUserAndClientRequestId(
                     user.userId(), request.clientRequestId());
             if (duplicate == null) {
                 throw exception;
@@ -143,7 +150,8 @@ public class ReservationService {
         }
 
         long total = reservationMapper.countMine(user.userId(), normalizedStatus, fromLocal, toLocal);
-        int offset = (page - 1) * size;
+        long offset = (long) (page - 1) * size;
+        if (offset >= total) return new PageResponse<>(List.of(), total, page, size);
         List<ReservationVO> items = reservationMapper
                 .listMine(user.userId(), normalizedStatus, fromLocal, toLocal, offset, size)
                 .stream().map(this::toVO).toList();
@@ -211,8 +219,9 @@ public class ReservationService {
         if ("LIBRARY_SEAT".equals(resourceType)) {
             return SeatArrivalDeadline.deadline(acceptedAt);
         }
-        // 体育场地按预约开始时间起算15分钟；讨论室/教室的专项规则在 XIA-12/13 中另行确认。
-        return start.plusMinutes(15);
+        if ("DISCUSSION_ROOM".equals(resourceType)) return null;
+        if (Set.of("CLASSROOM", "BADMINTON", "TABLE_TENNIS", "TENNIS").contains(resourceType)) return start.plusMinutes(15);
+        throw new BusinessException(400, "INVALID_ARGUMENT", "该资源类型尚不支持预约");
     }
 
     private ReservationVO toVO(ReservationRow row) {

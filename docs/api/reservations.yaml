@@ -19,6 +19,8 @@ paths:
         服务端在同一事务内锁定资源行，重新检查资源启用、重叠阻塞安排、开放安排和有效预约冲突，
         然后写入 RESERVED 预约和 reservation_event。相同 clientRequestId 且参数一致时返回原预约；
         参数不一致返回 409 IDEMPOTENCY_CONFLICT。新建返回 201，幂等重放返回 200。
+        新请求不接受已开始时段；讨论室最晚在使用日期前一自然日提交，不要求满24小时。
+        数据库并发锁冲突返回409 RESERVATION_RETRY，可使用原clientRequestId重试。
       parameters:
         - $ref: '#/components/parameters/CsrfHeader'
       requestBody:
@@ -269,7 +271,8 @@ components:
         arrivalDeadline:
           type: string
           format: date-time
-          description: 座位为 acceptedAt+30 分钟；教室和体育为 startTime+15 分钟。
+          nullable: true
+          description: 座位为 acceptedAt+30 分钟；教室和体育为 startTime+15 分钟；讨论室为null，不套用这些签到期限。
         checkInAt: {type: string, format: date-time, nullable: true}
         checkOutAt: {type: string, format: date-time, nullable: true}
         cancelReason:

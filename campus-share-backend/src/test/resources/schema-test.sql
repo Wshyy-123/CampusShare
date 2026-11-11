@@ -52,7 +52,7 @@ CREATE TABLE reservation (
     start_at TIMESTAMP(3) NOT NULL,
     end_at TIMESTAMP(3) NOT NULL,
     accepted_at TIMESTAMP(3) NOT NULL,
-    arrival_deadline TIMESTAMP(3) NOT NULL,
+    arrival_deadline TIMESTAMP(3) NULL,
     status VARCHAR(32) NOT NULL,
     cancel_reason VARCHAR(32),
     check_in_at TIMESTAMP(3),

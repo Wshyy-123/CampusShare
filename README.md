@@ -4,6 +4,10 @@
 
 **2026-11-10代码已通过PR #3、#4、#5收录到main。下一轮从最新main开功能分支，后端直接改campus-share-backend/，前端直接改frontend/src/；不再另建独立应用。先读[主工程集成与协作要求](docs/校享CampusShare_主工程集成与协作要求_2026-11-10.md)。收录代码不代表已集成运行。**
 
+**前端基准：后续统一在当前界面上扩展页面与功能。请先读[前端基准与页面扩展指南](docs/校享CampusShare_前端基准与页面扩展指南.md)：统一导航、页面/弹窗、演示与真实接口模式，以及成员操作步骤。当前界面默认演示数据；api模式已接入预约核心接口，其他模块按实际接入范围判断完成。**
+
+**2026-11-11预约接入：XIA-5/6接入当前统一界面，api模式支持主后端登录、资源可用性、创建预约与本人记录。首次启动及001至005迁移步骤见[预约模块接入说明](docs/校享CampusShare_预约模块接入说明_2026-11-11.md)。默认demo模式继续可独立展示。**
+
 ## 开发前先读
 
 | 读者 | 文件与用途 |
@@ -11,7 +15,7 @@
 | 全体成员 | [项目背景与业务规则 V1.2](docs/校享CampusShare_项目背景与业务规则.md)：产品背景、三类资源流程、15/30分钟、结束释放、地点码及验收 |
 | 全体开发成员 | [主工程集成与协作要求](docs/校享CampusShare_主工程集成与协作要求_2026-11-10.md)：唯一主工程位置、模块迁移、同步分支和PR检查 |
 | 本次更新涉及的同学 | [2026-11-04开发同步说明](docs/校享CampusShare_开发同步说明_2026-11-04.md)：各模块怎样调整、与现有故事怎样衔接 |
-| 前端 | [前端开发约定 V1.3](docs/校享CampusShare_前端开发约定.md)：页面、Vue Bits视觉、手机扫码、模拟刷卡及接口协作 |
+| 前端 | [前端基准与页面扩展指南](docs/校享CampusShare_前端基准与页面扩展指南.md)：当前代码入口、加菜单/页面、接口接入和检查；[前端开发约定 V1.5](docs/校享CampusShare_前端开发约定.md)：页面、Vue Bits视觉、手机扫码、模拟刷卡及接口协作 |
 | 后端、数据库和接口 | [后端数据库接口与协作约定 V1.3](docs/校享CampusShare_后端数据库接口与协作约定.md)：数据模型、状态、事务、任务及身份校验 |
 | 全体协作成员 | [开发环境与协作约定 V1.3](docs/校享CampusShare_开发环境与协作约定.md)：环境、分支、PR及检查 |
 | 使用Agent的成员 | [AGENTS.md](AGENTS.md)：Agent开发背景与必须遵守的规则 |
@@ -37,32 +41,4 @@ Vue 3 + TypeScript + Vite、npm；Java 21 + Spring Boot 3.5.16 + MyBatis Starter
 - docs/：业务规则、开发约定、接口和验证说明。
 - 独立功能模块接入主后端前，核对依赖、包扫描、共享数据库、认证与统一锁顺序。
 
-本次是文档要求更新，不代表新增功能已实现、模块已接入或产品已验收。成员按文档核对自己负责的代码、接口、SQL和测试，在功能分支PR中说明实际结果。
-
-## XIA-5 / XIA-6 当前分支
-
-当前分支 `feature/XIA-5-XIA-6` 已按 V1.3 合入主工程，实现：
-
-- **XIA-5 创建预约**：资源/日期/时段选择、开放与占用检查、冲突检查、`clientRequestId` 幂等、座位 30 分钟/教室与体育 15 分钟到馆期限。
-- **XIA-6 我的预约**：本人预约分页列表、状态筛选、空状态、预约详情与越权访问拒绝；展示 RESERVED、CHECKED_IN、COMPLETED、CANCELLED 及原因。
-
-相关文件：
-
-- `campus-share-backend/`：主后端，预约模块位于 `org.campus.campussharebackend`，由主启动类统一扫描；数据库迁移见 `campus-share-backend/docs/datebase/003_xia5_xia6_core.sql` 和 `004_xia5_xia6_demo.sql`。
-- `frontend/`：预约页面与请求封装，默认代理到 8080；本机端口冲突可用 `VITE_API_PROXY_TARGET` 覆盖。
-- `docs/api/`：预约接口 OpenAPI。
-- `docs/testing/`：测试计划、测试用例和 PingCode 导入文件。
-- `docs/verification/`：实际验证记录。
-
-启动与验证：
-
-```powershell
-cd campus-share-backend
-$env:JAVA_HOME = 'D:\Program Files\Java\jdk-21.0.9'
-$env:CAMPUSSHARE_DB_URL = 'jdbc:mysql://127.0.0.1:3306/campusshare?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true'
-$env:CAMPUSSHARE_DB_USERNAME = 'root'
-$env:CAMPUSSHARE_DB_PASSWORD = '你的本地密码'
-.\mvnw.cmd spring-boot:run
-```
-
-数据库脚本按 `001_schema.sql` → `002_demo_data.sql` → `003_xia5_xia6_core.sql` → `004_xia5_xia6_demo.sql` 顺序执行。真实密码只放本地环境变量，不提交仓库。
+当前主前端已提供统一界面和演示交互；api模式已接入主后端的登录、资源、创建预约及本人记录，扫码、刷卡和自动释放仍未接入。API失败不回退样例。成员继续在共享工程完成各自功能，按实际代码、接口、SQL和测试判断完成，在PR中说明验证范围。

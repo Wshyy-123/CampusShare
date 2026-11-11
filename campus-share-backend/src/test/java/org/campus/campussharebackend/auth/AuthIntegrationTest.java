@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.campus.campussharebackend.support.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,19 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MvcResult;
 
 class AuthIntegrationTest extends IntegrationTestBase {
+
+    @Test
+    void loginChangesAnExistingSessionId() throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        String previous = session.getId();
+        mockMvc.perform(post("/api/v1/auth/login").session(session).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"account\":\"student01\",\"password\":\"Campus@123\"}"))
+                .andExpect(status().isOk());
+        assertThat(session.getId()).isNotEqualTo(previous);
+        mockMvc.perform(get("/api/v1/auth/me").session(session))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.account").value("student01"));
+    }
 
     @Test
     void exposesCsrfTokenAndHeaderName() throws Exception {

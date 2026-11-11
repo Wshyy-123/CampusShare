@@ -1,41 +1,41 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
-import { errorMessage } from '../api/http'
-import { reservationsApi } from '../api/reservations'
-import type { Reservation } from '../types/api'
-import StatusBadge from '../components/StatusBadge.vue'
+import { onMounted, ref } from "vue";
+import { useRoute } from "vue-router";
+import { errorMessage } from "../api/http";
+import { reservationsApi } from "../api/reservations";
+import type { Reservation } from "../types/api";
+import StatusBadge from "../components/StatusBadge.vue";
 
-const route = useRoute()
-const reservation = ref<Reservation | null>(null)
-const loading = ref(true)
-const error = ref('')
+const route = useRoute();
+const reservation = ref<Reservation | null>(null);
+const loading = ref(true);
+const error = ref("");
 
 async function load() {
-  loading.value = true
-  error.value = ''
+  loading.value = true;
+  error.value = "";
   try {
-    reservation.value = await reservationsApi.detail(String(route.params.id))
+    reservation.value = await reservationsApi.detail(String(route.params.id));
   } catch (exception) {
-    error.value = errorMessage(exception)
+    error.value = errorMessage(exception);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 function formatDateTime(iso: string | null): string {
-  if (!iso) return '—'
-  return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`
+  if (!iso) return "—";
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
 }
 
 function cancelReasonLabel(reason: string | null): string {
-  if (reason === 'USER_CANCEL') return '本人取消'
-  if (reason === 'NO_SHOW') return '未到超时'
-  if (reason === 'RESOURCE_DISABLED') return '资源停用'
-  return reason ?? '—'
+  if (reason === "USER_CANCEL") return "本人取消";
+  if (reason === "NO_SHOW") return "未到超时";
+  if (reason === "RESOURCE_DISABLED") return "资源停用";
+  return reason ?? "—";
 }
 
-onMounted(load)
+onMounted(load);
 </script>
 
 <template>
@@ -43,7 +43,9 @@ onMounted(load)
     <div class="page-head">
       <div>
         <p class="small">
-          <RouterLink to="/reservations" class="back-link">← 返回我的预约</RouterLink>
+          <RouterLink to="/bookings" class="back-link"
+            >← 返回我的预约</RouterLink
+          >
         </p>
         <h1>预约详情</h1>
         <p v-if="reservation">{{ reservation.resourceName }}</p>
@@ -54,7 +56,9 @@ onMounted(load)
     <div v-else-if="error" class="card empty">
       <strong>无法查看这条预约</strong>
       <p class="small">{{ error }}</p>
-      <RouterLink class="btn btn-primary" to="/reservations">返回我的预约</RouterLink>
+      <RouterLink class="btn btn-primary" to="/bookings"
+        >返回我的预约</RouterLink
+      >
     </div>
 
     <div v-else-if="reservation" class="stack">
@@ -62,7 +66,9 @@ onMounted(load)
         <div>
           <span class="pill">{{ reservation.resourceType }}</span>
           <h2>{{ reservation.resourceName }}</h2>
-          <p class="small">{{ reservation.location }} · {{ reservation.unitLabel }}</p>
+          <p class="small">
+            {{ reservation.location }} · {{ reservation.unitLabel }}
+          </p>
         </div>
         <StatusBadge
           :status="reservation.status"
@@ -84,7 +90,10 @@ onMounted(load)
           </div>
           <div class="detail-item">
             <dt>使用时段</dt>
-            <dd>{{ formatDateTime(reservation.startTime) }} – {{ formatDateTime(reservation.endTime) }}</dd>
+            <dd>
+              {{ formatDateTime(reservation.startTime) }} –
+              {{ formatDateTime(reservation.endTime) }}
+            </dd>
           </div>
           <div class="detail-item">
             <dt>当前状态</dt>

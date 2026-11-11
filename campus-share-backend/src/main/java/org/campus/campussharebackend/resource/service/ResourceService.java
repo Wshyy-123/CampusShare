@@ -10,6 +10,8 @@ import org.campus.campussharebackend.resource.vo.IntervalVO;
 import org.campus.campussharebackend.resource.vo.ReservationSlotVO;
 import org.campus.campussharebackend.resource.vo.ResourceVO;
 import java.time.LocalDate;
+import java.time.Clock;
+import org.springframework.beans.factory.annotation.Qualifier;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -25,8 +27,10 @@ public class ResourceService {
 
     private final ResourceMapper resourceMapper;
 
-    public ResourceService(ResourceMapper resourceMapper) {
+    private final Clock clock;
+    public ResourceService(ResourceMapper resourceMapper, @Qualifier("lifecycleClock") Clock clock) {
         this.resourceMapper = resourceMapper;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -42,16 +46,22 @@ public class ResourceService {
     @Transactional(readOnly = true)
     public AvailabilityVO availability(long resourceId, LocalDate date) {
         ResourceRecord resource = requireResource(resourceId);
-        LocalDate targetDate = date == null ? LocalDate.now(TimeFormats.BUSINESS_ZONE) : date;
+        LocalDate targetDate = date == null ? LocalDate.now(clock) : date;
         LocalDateTime dayStart = targetDate.atStartOfDay();
         LocalDateTime dayEnd = dayStart.plusDays(1);
+        var openings = resourceMapper.listOpeningsForDate(resourceId, dayStart, dayEnd);
+        var blocks = resourceMapper.listBlocksForDate(resourceId, dayStart, dayEnd);
+        var reservations = resourceMapper.listActiveReservationsForDate(resourceId, dayStart, dayEnd);
+        LocalDateTime now = TimeFormats.now(clock);
+        var available = resource.isEnabled() && !("DISCUSSION_ROOM".equals(resource.getResourceType()) && !targetDate.isAfter(now.toLocalDate()))
+                ? AvailabilityCalculator.free(openings, blocks, reservations, dayStart.isAfter(now) ? dayStart : now, dayEnd)
+                : List.<IntervalVO>of();
         return new AvailabilityVO(
                 ResourceVO.from(resource),
                 targetDate.toString(),
-                resourceMapper.listOpeningsForDate(resourceId, dayStart, dayEnd).stream().map(IntervalVO::from).toList(),
-                resourceMapper.listBlocksForDate(resourceId, dayStart, dayEnd).stream().map(BlockVO::from).toList(),
-                resourceMapper.listActiveReservationsForDate(resourceId, dayStart, dayEnd)
-                        .stream().map(ReservationSlotVO::from).toList());
+                openings.stream().map(IntervalVO::from).toList(),
+                blocks.stream().map(BlockVO::from).toList(),
+                reservations.stream().map(ReservationSlotVO::from).toList(), available);
     }
 
     private ResourceRecord requireResource(long resourceId) {

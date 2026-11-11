@@ -1,38 +1,24 @@
-# CampusShare frontend
+# CampusShare 主前端
 
-XIA-5（资源预约提交）和 XIA-6（我的预约、详情）的 Vue 3 页面。
+Vue 3 + TypeScript + Vite，统一应用入口。后续成员基于最新main的本工程扩展页面，导航/路由共用src/config/pages.ts，页面统一通过src/composables/useCampus.ts取得服务。
 
-## 启动
+先读[前端基准与页面扩展指南](../docs/校享CampusShare_前端基准与页面扩展指南.md)，业务按[项目背景与业务规则](../docs/校享CampusShare_项目背景与业务规则.md)。
 
-```bash
-npm install
-npm run dev
+```powershell
+npm.cmd ci
+npm.cmd run dev -- --host 127.0.0.1 --port 5173 --strictPort
 ```
 
-- 开发地址：`http://localhost:5173`
-- Vite 将 `/api` 代理到 `http://localhost:8080`（主后端默认端口；本机可用 `VITE_API_PROXY_TARGET` 覆盖）
-- 演示账号：`student01`、`student02`、`teacher01`，密码均为 `Campus@123`
+打开http://127.0.0.1:5173/resources。主页面另有/bookings和/admin/schedules。
 
-## 检查
+默认demo，常驻模拟数据提示，刷新重置。复制.env.example到.env.local可设置VITE_DATA_MODE；api模式连接主后端的登录、资源查询、创建预约和本人记录；失败不回退样例。启动后端和SQL步骤见[预约模块接入说明](../docs/校享CampusShare_预约模块接入说明_2026-11-11.md)。
 
-```bash
-npm run typecheck
-npm run build
+```powershell
+npm.cmd run check:baseline
+npm.cmd run check:api
+npm.cmd run build
 ```
 
-## 页面
+检查包含演示边界、错误处理、模式隔离、路由和组件渲染，不代替实际浏览器、真实后端、认证和扫码验收。Windows重装依赖前停止自己运行的Vite，避免原生绑定占用。
 
-| 路由 | 页面 |
-|---|---|
-| `/login` | 临时登录入口（XIA-1 落地后替换） |
-| `/resources` | 资源列表与筛选 |
-| `/reserve/:id` | 选择日期/时段、查看当天开放与占用、提交预约 |
-| `/reservations` | 我的预约列表、状态筛选、分页、空状态 |
-| `/reservations/:id` | 本人预约详情；他人记录显示“不存在或无权查看” |
-
-## 说明
-
-- 请求统一走 `src/api/http.ts`，自动获取并携带 CSRF 令牌；401 统一跳回登录。
-- `clientRequestId` 由前端为同一次提交生成，网络失败重试时复用；参数变化才生成新值。
-- 页面不自行判断预约成功，成功状态以接口返回为准。
-- 资源读取接口是 XIA-4 的临时依赖，后续应替换为 XIA-4 的正式契约。
+新增入口先在views实现业务页，再注册pages配置，共用App和theme。局部新增/修改使用弹窗；扫码和可分享详情使用独立路由。XIA-3-XIA-4和LegacyLibraryTerminal为来源材料，不继续发展独立应用。

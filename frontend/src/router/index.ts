@@ -1,47 +1,76 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
-import LoginView from '../views/LoginView.vue'
-import ResourceListView from '../views/ResourceListView.vue'
-import ReservationCreateView from '../views/ReservationCreateView.vue'
-import MyReservationsView from '../views/MyReservationsView.vue'
-import ReservationDetailView from '../views/ReservationDetailView.vue'
-import { authState, restoreAuth } from '../stores/auth'
-
-const routes: RouteRecordRaw[] = [
-  { path: '/', redirect: '/resources' },
-  { path: '/login', name: 'login', component: LoginView },
-  { path: '/resources', name: 'resources', component: ResourceListView, meta: { requiresAuth: true } },
-  { path: '/reserve/:id', name: 'reserve', component: ReservationCreateView, meta: { requiresAuth: true } },
-  {
-    path: '/reservations',
-    name: 'my-reservations',
-    component: MyReservationsView,
-    meta: { requiresAuth: true },
-  },
-  {
-    path: '/reservations/:id',
-    name: 'reservation-detail',
-    component: ReservationDetailView,
-    meta: { requiresAuth: true },
-  },
-  { path: '/:pathMatch(.*)*', redirect: '/resources' },
-]
+import { createRouter, createWebHistory } from "vue-router";
+import { navigationPages } from "../config/pages";
+import { authState, restoreAuth, clearAuth } from "../stores/auth";
+import { setUnauthorizedHandler } from "../api/http";
+import { useCampus, notify } from "../composables/useCampus";
 
 const router = createRouter({
   history: createWebHistory(),
-  routes,
-})
+  routes: [
+    { path: "/", redirect: "/resources" },
+    ...navigationPages.map((page) => ({
+      path: page.to,
+      name: page.name,
+      component: page.component,
+      meta: {
+        title: page.label,
+        roles: "roles" in page ? page.roles : undefined,
+      },
+    })),
+    {
+      path: "/login",
+      name: "login",
+      component: () => import("../views/LoginView.vue"),
+      meta: { title: "登录", public: true },
+    },
+    {
+      path: "/resources/:id/reserve",
+      component: () => import("../views/ReservationCreateView.vue"),
+      meta: { title: "预约资源" },
+    },
+    {
+      path: "/bookings/:id",
+      component: () => import("../views/ReservationDetailView.vue"),
+      meta: { title: "预约详情" },
+    },
+    { path: "/reservations", redirect: "/bookings" },
+    {
+      path: "/reservations/:id",
+      redirect: (to) => `/bookings/${String(to.params.id)}`,
+    },
+    { path: "/:pathMatch(.*)*", redirect: "/resources" },
+  ],
+  scrollBehavior: () => ({ top: 0 }),
+});
 
+const campus = useCampus();
+setUnauthorizedHandler(() => {
+  clearAuth();
+  campus.reset();
+  if (
+    router.currentRoute.value.matched.length &&
+    router.currentRoute.value.path !== "/login"
+  )
+    void router.replace({
+      path: "/login",
+      query: { redirect: router.currentRoute.value.fullPath },
+    });
+});
 router.beforeEach(async (to) => {
-  if (!authState.initialized) {
-    await restoreAuth()
+  if (campus.isDemo || to.meta.public) return true;
+  await restoreAuth();
+  if (!authState.user)
+    return { path: "/login", query: { redirect: to.fullPath } };
+  if (
+    Array.isArray(to.meta.roles) &&
+    !to.meta.roles.includes(authState.user.role)
+  ) {
+    notify("当前账号没有访问该管理页面的权限。");
+    return "/resources";
   }
-  if (to.meta.requiresAuth && !authState.user) {
-    return { name: 'login', query: { redirect: to.fullPath } }
-  }
-  if (to.name === 'login' && authState.user) {
-    return { name: 'resources' }
-  }
-  return true
-})
-
-export default router
+  await campus.initialize();
+  if (!authState.user)
+    return { path: "/login", query: { redirect: to.fullPath } };
+  return true;
+});
+export default router;

@@ -13,6 +13,8 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.security.web.csrf.CsrfTokenRepository;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -30,13 +32,18 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository;
     private final CurrentUserProvider currentUserProvider;
+    private final SessionAuthenticationStrategy sessionStrategy;
+    private final CsrfTokenRepository csrfTokenRepository;
 
     public AuthController(AuthenticationManager authenticationManager,
                           SecurityContextRepository securityContextRepository,
-                          CurrentUserProvider currentUserProvider) {
+                          CurrentUserProvider currentUserProvider,
+                          SessionAuthenticationStrategy sessionStrategy, CsrfTokenRepository csrfTokenRepository) {
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
         this.currentUserProvider = currentUserProvider;
+        this.sessionStrategy = sessionStrategy;
+        this.csrfTokenRepository = csrfTokenRepository;
     }
 
     public record LoginRequest(@NotBlank String account, @NotBlank String password) {
@@ -56,6 +63,8 @@ public class AuthController {
                                           HttpServletRequest request, HttpServletResponse response) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(loginRequest.account(), loginRequest.password()));
+        // 自定义JSON登录不会经过标准登录过滤器，显式更新会话ID并轮换CSRF令牌。
+        sessionStrategy.onAuthentication(authentication, request, response);
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
@@ -70,12 +79,13 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ApiResponse<Void> logout(HttpServletRequest request) {
+    public ApiResponse<Void> logout(HttpServletRequest request, HttpServletResponse response) {
         SecurityContextHolder.clearContext();
         HttpSession session = request.getSession(false);
         if (session != null) {
             session.invalidate();
         }
+        csrfTokenRepository.saveToken(null, request, response);
         return ApiResponse.ok("已退出", null);
     }
 }

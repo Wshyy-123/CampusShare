@@ -4,5 +4,5 @@ import java.util.List;
 
 public record AvailabilityVO(ResourceVO resource, String date,
                              List<IntervalVO> openings, List<BlockVO> blocks,
-                             List<ReservationSlotVO> reservations) {
+                             List<ReservationSlotVO> reservations, List<IntervalVO> availablePeriods) {
 }

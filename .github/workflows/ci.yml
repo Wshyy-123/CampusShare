@@ -37,6 +37,15 @@ jobs:
             -Dspring.datasource.username=root \
             -Dspring.datasource.password=root \
             -Dspring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+      - name: Apply numbered migrations on isolated MySQL
+        working-directory: campus-share-backend
+        run: |
+          docker exec ${{ job.services.mysql.id }} mysql -uroot -proot -e "CREATE DATABASE campusshare CHARACTER SET utf8mb4"
+          for migration in docs/datebase/00*.sql; do
+            docker exec -i ${{ job.services.mysql.id }} mysql -uroot -proot --init-command="SET time_zone='+08:00'" < "$migration"
+          done
+          nullable=$(docker exec ${{ job.services.mysql.id }} mysql -uroot -proot -N -e "SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='campusshare' AND TABLE_NAME='reservation' AND COLUMN_NAME='arrival_deadline'")
+          test "$nullable" = "YES"
 
   frontend:
     runs-on: ubuntu-latest
@@ -51,4 +60,6 @@ jobs:
         working-directory: frontend
         run: |
           npm ci
+          npm run check:baseline
+          npm run check:api
           npm run build

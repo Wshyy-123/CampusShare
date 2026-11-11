@@ -5,6 +5,7 @@ import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -58,6 +59,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DuplicateKeyException.class)
     public ResponseEntity<ApiResponse<Void>> duplicateKey(DuplicateKeyException exception) {
         return error(HttpStatus.CONFLICT.value(), "IDEMPOTENCY_CONFLICT", "请求与已有记录冲突");
+    }
+
+    @ExceptionHandler(PessimisticLockingFailureException.class)
+    public ResponseEntity<ApiResponse<Void>> concurrentUpdate(PessimisticLockingFailureException exception) {
+        return error(HttpStatus.CONFLICT.value(), "RESERVATION_RETRY", "资源状态同时变化，请使用原clientRequestId重试");
     }
 
     @ExceptionHandler(Exception.class)

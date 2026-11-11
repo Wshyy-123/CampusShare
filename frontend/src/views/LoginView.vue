@@ -1,108 +1,110 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { errorMessage } from '../api/http'
-import { login } from '../stores/auth'
-
-const route = useRoute()
-const router = useRouter()
-const form = reactive({ account: 'student01', password: 'Campus@123' })
-const submitting = ref(false)
-const error = ref('')
-
-const demoAccounts = [
-  { account: 'student01', name: '张三', role: '学生' },
-  { account: 'student02', name: '李四', role: '学生' },
-  { account: 'teacher01', name: '王老师', role: '教师' },
-]
-
-function useDemo(account: string) {
-  form.account = account
-  form.password = 'Campus@123'
-  error.value = ''
-}
-
+import { reactive, ref } from "vue";
+import { useRoute, useRouter, RouterLink } from "vue-router";
+import { errorMessage } from "../api/http";
+import { login, authState } from "../stores/auth";
+import { useCampus } from "../composables/useCampus";
+import { safeReturnPath } from "../utils/navigation";
+import AppIcon from "../components/common/AppIcon.vue";
+const router = useRouter();
+const route = useRoute();
+const campus = useCampus();
+const form = reactive({ account: "", password: "" });
+const submitting = ref(false);
+const error = ref("");
+const accounts = [
+  { id: "student01", label: "学生一" },
+  { id: "student02", label: "学生二" },
+  { id: "teacher01", label: "教师" },
+  { id: "admin01", label: "管理员" },
+];
 async function submit() {
   if (!form.account.trim() || !form.password) {
-    error.value = '请输入账号和密码'
-    return
+    error.value = "请输入账号和密码";
+    return;
   }
-  submitting.value = true
-  error.value = ''
+  submitting.value = true;
+  error.value = "";
   try {
-    await login(form.account.trim(), form.password)
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/resources'
-    await router.replace(redirect)
+    await login(form.account.trim(), form.password);
+    campus.reset();
+    await router.replace(safeReturnPath(route.query.redirect));
   } catch (exception) {
-    error.value = errorMessage(exception)
+    error.value = errorMessage(exception);
   } finally {
-    submitting.value = false
+    submitting.value = false;
   }
 }
 </script>
-
 <template>
-  <section class="login-wrap">
-    <div class="card login-card">
-      <div class="login-heading">
-        <span class="brand-mark brand-mark-large">校</span>
+  <section class="login-layout">
+    <div class="page-intro">
+      <span class="eyebrow">WELCOME TO YOUR CAMPUS</span>
+      <h1>登录，找到你的<span class="gradient-text">下一站。</span></h1>
+      <p>用自己的账户预约校园空间，查看使用安排。</p>
+      <div class="rule-box">
+        <AppIcon name="shield" />
         <div>
-          <h1>登录校享</h1>
-          <p class="small">预约校园公共场地，查看自己的使用安排。</p>
-        </div>
-      </div>
-
-      <div class="alert alert-warning">
-        这是 XIA-5/XIA-6 联调用的临时登录入口；XIA-1 的完整登录与权限流程完成后应替换本页。
-      </div>
-
-      <form class="stack" @submit.prevent="submit">
-        <label class="field">
-          <span>账号</span>
-          <input v-model="form.account" class="input" autocomplete="username" placeholder="例如 student01" />
-        </label>
-        <label class="field">
-          <span>密码</span>
-          <input
-            v-model="form.password"
-            class="input"
-            type="password"
-            autocomplete="current-password"
-            placeholder="请输入密码"
-          />
-        </label>
-
-        <div v-if="error" class="alert alert-error">{{ error }}</div>
-
-        <button class="btn btn-primary btn-block" type="submit" :disabled="submitting">
-          {{ submitting ? '登录中…' : '登录' }}
-        </button>
-      </form>
-
-      <div class="demo-block">
-        <p class="small">演示账号（密码均为 Campus@123）</p>
-        <div class="chip-row">
-          <button
-            v-for="item in demoAccounts"
-            :key="item.account"
-            type="button"
-            class="chip"
-            @click="useDemo(item.account)"
-          >
-            {{ item.name }} · {{ item.role }} · {{ item.account }}
-          </button>
+          <strong>会话身份 · 本人预约</strong>
+          <p>预约归属以服务端登录账户为准，页面不传入用户编号。</p>
         </div>
       </div>
     </div>
-
-    <aside class="login-aside">
-      <h2>这一轮能做什么</h2>
-      <ul>
-        <li>按资源类型和位置查找开放中的场地或座位。</li>
-        <li>选择日期与时段提交预约，服务端检查开放、教学占用和冲突。</li>
-        <li>在“我的预约”中查看本人预约及处理后的状态。</li>
-      </ul>
-      <p class="small">学生和教师都可以使用；资源管理员入口属于其他故事。</p>
-    </aside>
+    <div v-if="campus.isDemo" class="panel login-panel">
+      <h2>当前为演示模式</h2>
+      <p class="muted">
+        浏览示例页面无需登录。真实登录与预约请在接口模式运行并启动主后端。
+      </p>
+      <RouterLink class="button primary" to="/resources"
+        >返回发现空间</RouterLink
+      >
+    </div>
+    <form v-else class="panel login-panel" @submit.prevent="submit">
+      <h2>登录校享</h2>
+      <p class="muted">连接主后端，查询与保存本人预约。</p>
+      <label class="form-field"
+        >账号<input
+          v-model="form.account"
+          class="input"
+          autocomplete="username"
+          required /></label
+      ><label class="form-field"
+        >密码<input
+          v-model="form.password"
+          class="input"
+          type="password"
+          autocomplete="current-password"
+          required
+      /></label>
+      <p v-if="error || authState.error" class="error-message" role="alert">
+        {{ error || authState.error }}
+      </p>
+      <button
+        class="button primary full-width"
+        type="submit"
+        :disabled="submitting"
+      >
+        {{ submitting ? "登录中…" : "登录" }}<AppIcon name="arrow" :size="17" />
+      </button>
+      <div class="demo-accounts">
+        <p class="muted">已导入演示SQL时，可填入以下虚构账号：</p>
+        <div>
+          <button
+            v-for="account in accounts"
+            :key="account.id"
+            type="button"
+            class="button secondary"
+            @click="
+              form.account = account.id;
+              form.password = 'Campus@123';
+              error = '';
+            "
+          >
+            {{ account.label }}
+          </button>
+        </div>
+        <p class="muted">仅填入表单，仍需后端核验账号与密码。</p>
+      </div>
+    </form>
   </section>
 </template>

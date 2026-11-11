@@ -15,6 +15,8 @@ public interface ResourceMapper {
     List<ResourceRecord> list(@Param("resourceType") String resourceType,
                               @Param("location") String location);
 
+    List<OpeningRecord> lockOpenings(@Param("resourceId") long resourceId, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
     ResourceRecord findById(@Param("id") long id);
 
     OpeningRecord findCoveringOpening(@Param("resourceId") long resourceId,
