@@ -38,4 +38,16 @@ public interface ResourceMapper {
     List<ReservationSlot> listActiveReservationsForDate(@Param("resourceId") long resourceId,
                                                         @Param("dayStart") LocalDateTime dayStart,
                                                         @Param("dayEnd") LocalDateTime dayEnd);
+
+    List<ResourceRecord> listAll(@Param("keyword") String keyword,
+                                 @Param("resourceType") String resourceType,
+                                 @Param("offset") int offset,
+                                 @Param("limit") int limit);
+
+    long countAll(@Param("keyword") String keyword,
+                  @Param("resourceType") String resourceType);
+
+    int insert(ResourceRecord record);
+
+    int update(ResourceRecord record);
 }

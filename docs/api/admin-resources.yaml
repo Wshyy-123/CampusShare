@@ -1,0 +1,195 @@
+openapi: 3.0.3
+info:
+  title: CampusShare XIA-2 资源维护接口
+  version: 0.1.0
+  description: |
+    资源管理员维护 resource 表的入口。字段与 campus-share-backend 的
+    resource 表一致；开放安排、教学占用和停用时段分别属于 XIA-3、XIA-14，
+    不在本契约内。普通用户不可调用 /admin/**，服务端按 RESOURCE_ADMIN 角色独立校验。
+servers:
+  - url: /api/v1
+security:
+  - sessionCookie: []
+paths:
+  /admin/resources:
+    get:
+      operationId: listAllResources
+      summary: 分页查询资源（含已停用）
+      description: 与公开 /resources 不同，此接口返回停用资源，供管理页编辑。
+      parameters:
+        - name: page
+          in: query
+          schema: {type: integer, minimum: 1, default: 1}
+        - name: size
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+        - name: keyword
+          in: query
+          schema: {type: string}
+          description: 名称、位置或编号标签模糊匹配
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [LIBRARY_SEAT, CLASSROOM, BADMINTON, TABLE_TENNIS, TENNIS, DISCUSSION_ROOM]
+      responses:
+        '200':
+          description: 分页结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePageResponse'
+        '401':
+          description: 未登录（AUTH_REQUIRED）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: 非资源管理员（FORBIDDEN）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      operationId: createResource
+      summary: 新增资源
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourcePayload'
+      responses:
+        '200':
+          description: 创建成功，data 为服务端返回的资源
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceResponse'
+        '400':
+          description: 字段不合法（INVALID_ARGUMENT）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: 非资源管理员（FORBIDDEN），含CSRF失败（CSRF_INVALID）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/resources/{resourceId}:
+    put:
+      operationId: updateResource
+      summary: 修改允许维护的资源信息
+      description: 整体更新名称、位置、类型、编号标签与启用状态；不修改开放安排和预约。
+      parameters:
+        - name: resourceId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[1-9][0-9]*$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourcePayload'
+      responses:
+        '200':
+          description: 更新成功，data 为服务端最新资源
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceResponse'
+        '400':
+          description: 字段不合法（INVALID_ARGUMENT）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: 非资源管理员（FORBIDDEN）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 资源不存在（RESOURCE_NOT_FOUND）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+  schemas:
+    Resource:
+      type: object
+      required: [resourceId, name, location, resourceType, unitLabel, enabled]
+      properties:
+        resourceId: {type: string}
+        name: {type: string}
+        location: {type: string}
+        resourceType: {type: string}
+        unitLabel: {type: string}
+        enabled: {type: boolean}
+    ResourcePayload:
+      type: object
+      required: [name, location, resourceType, unitLabel, enabled]
+      properties:
+        name: {type: string, maxLength: 100}
+        location: {type: string, maxLength: 100}
+        resourceType:
+          type: string
+          enum: [LIBRARY_SEAT, CLASSROOM, BADMINTON, TABLE_TENNIS, TENNIS, DISCUSSION_ROOM]
+        unitLabel: {type: string, maxLength: 50}
+        enabled: {type: boolean}
+    PageMeta:
+      type: object
+      required: [total, page, size]
+      properties:
+        total: {type: integer, minimum: 0}
+        page: {type: integer, minimum: 1}
+        size: {type: integer, minimum: 1, maximum: 100}
+    ResourcePageResponse:
+      type: object
+      required: [code, message, data, requestId]
+      properties:
+        code: {type: string, enum: [OK]}
+        message: {type: string}
+        data:
+          allOf:
+            - $ref: '#/components/schemas/PageMeta'
+            - type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Resource'
+        requestId: {type: string}
+    ResourceResponse:
+      type: object
+      required: [code, message, data, requestId]
+      properties:
+        code: {type: string, enum: [OK]}
+        message: {type: string}
+        data:
+          $ref: '#/components/schemas/Resource'
+        requestId: {type: string}
+    Error:
+      type: object
+      required: [code, message, data, requestId]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        data: {nullable: true}
+        requestId: {type: string}

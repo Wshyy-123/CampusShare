@@ -1,7 +1,9 @@
 package org.campus.campussharebackend.resource.service;
 
 import org.campus.campussharebackend.common.BusinessException;
+import org.campus.campussharebackend.common.PageResponse;
 import org.campus.campussharebackend.common.TimeFormats;
+import org.campus.campussharebackend.resource.dto.ResourceSaveRequest;
 import org.campus.campussharebackend.resource.entity.ResourceRecord;
 import org.campus.campussharebackend.resource.mapper.ResourceMapper;
 import org.campus.campussharebackend.resource.vo.AvailabilityVO;
@@ -62,6 +64,49 @@ public class ResourceService {
                 openings.stream().map(IntervalVO::from).toList(),
                 blocks.stream().map(BlockVO::from).toList(),
                 reservations.stream().map(ReservationSlotVO::from).toList(), available);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<ResourceVO> adminList(String keyword, String resourceType, int page, int size) {
+        int safePage = Math.max(1, page);
+        int safeSize = Math.min(100, Math.max(1, size));
+        String normalizedKeyword = blankToNull(keyword);
+        String normalizedType = blankToNull(resourceType);
+        long total = resourceMapper.countAll(normalizedKeyword, normalizedType);
+        List<ResourceVO> items = resourceMapper
+                .listAll(normalizedKeyword, normalizedType, (safePage - 1) * safeSize, safeSize)
+                .stream().map(ResourceVO::from).toList();
+        return new PageResponse<>(items, total, safePage, safeSize);
+    }
+
+    @Transactional
+    public ResourceVO create(ResourceSaveRequest request) {
+        ResourceRecord record = toRecord(request);
+        resourceMapper.insert(record);
+        return ResourceVO.from(requireResource(record.getId()));
+    }
+
+    @Transactional
+    public ResourceVO update(long resourceId, ResourceSaveRequest request) {
+        ResourceRecord existing = requireResource(resourceId);
+        ResourceRecord record = toRecord(request);
+        record.setId(existing.getId());
+        resourceMapper.update(record);
+        return ResourceVO.from(requireResource(resourceId));
+    }
+
+    private static ResourceRecord toRecord(ResourceSaveRequest request) {
+        ResourceRecord record = new ResourceRecord();
+        record.setName(request.name().trim());
+        record.setLocation(request.location().trim());
+        record.setResourceType(request.resourceType());
+        record.setUnitLabel(request.unitLabel().trim());
+        record.setEnabled(request.enabled());
+        return record;
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private ResourceRecord requireResource(long resourceId) {

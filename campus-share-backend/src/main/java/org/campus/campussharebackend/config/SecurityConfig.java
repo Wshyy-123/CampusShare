@@ -47,6 +47,7 @@ public class SecurityConfig {
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/api/v1/auth/**", "/error").permitAll()
+                        .requestMatchers("/api/v1/admin/**").hasRole("RESOURCE_ADMIN")
                         .requestMatchers("/api/v1/**").authenticated()
                         .anyRequest().permitAll())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
