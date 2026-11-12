@@ -36,4 +36,5 @@ export interface Booking {
   startTime?: string;
   endTime?: string;
   arrivalDeadline?: string | null;
+  cancelReason?: string | null;
 }

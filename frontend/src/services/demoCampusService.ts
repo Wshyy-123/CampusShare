@@ -206,5 +206,8 @@ export function createDemoCampusService(
     slots,
     reserve,
     addOccupancy,
+    disableResource: async () => {
+      throw new Error("停用场地需要使用后端接口模式；演示数据不会写入数据库。");
+    },
   };
 }

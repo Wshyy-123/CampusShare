@@ -1,12 +1,21 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from "vue";
 import AppIcon from "../components/common/AppIcon.vue";
+import ResourceDisableDialog from "../components/ResourceDisableDialog.vue";
+import type { DisableResourceResult } from "../services/types";
 import { localDate, formatHour } from "../utils/presentation";
 import { useCampus } from "../composables/useCampus";
 import type { Occupancy } from "../types/campus";
 
 const { state, isDemo, addOccupancy, loadAvailability } = useCampus();
 const spaces = computed(() => state.resources);
+const disableDialog = ref<InstanceType<typeof ResourceDisableDialog> | null>(null);
+const disableResult = ref<DisableResourceResult | null>(null);
+function onDisabled(result: DisableResourceResult, selectedDate: string) {
+  disableResult.value = result;
+  date.value = selectedDate;
+  resourceFilter.value = result.resourceId;
+}
 const submitting = ref(false);
 const date = ref(localDate());
 const resourceFilter = ref("");
@@ -48,7 +57,7 @@ function openForm() {
     spaces.value.find((space) => space.kind === "CLASSROOM" && !space.disabled)
       ?.id ??
     spaces.value[0]?.id ??
-    0;
+    "";
   formDate.value = date.value;
   error.value = "";
   formDialog.value?.showModal();
@@ -98,10 +107,14 @@ async function submit() {
         {{
           isDemo
             ? "管理员界面预览 · 无真实权限和数据库操作"
-            : "当前仅可查看服务端占用，维护写接口尚未接入"
+            : "设置停用范围后，系统自动取消受影响且尚未开始使用的预约"
         }}
       </p>
     </div>
+    <div class="inline-actions">
+    <button class="button primary" :disabled="isDemo || !state.ready" @click="disableDialog?.open(date, resourceFilter)">
+      <AppIcon name="shield" :size="18" />停用场地
+    </button>
     <button
       class="button primary"
       :disabled="!state.ready || !state.scheduleWritable"
@@ -109,7 +122,11 @@ async function submit() {
     >
       <AppIcon name="plus" :size="18" />新增模拟占用
     </button>
+    </div>
   </div>
+  <p v-if="disableResult" class="panel form-description disable-result" role="status">
+    停用已生效，自动取消 {{ disableResult.cancelledReservationIds.length }} 条受影响预约；取消原因及历史已保留。
+  </p>
   <div class="admin-toolbar panel">
     <label>查看日期<input v-model="date" class="input" type="date" /></label
     ><label
@@ -121,7 +138,7 @@ async function submit() {
       </select></label
     >
     <div class="admin-tip">
-      <AppIcon name="info" :size="17" />模拟占用会同步到资源详情时间轴。
+      <AppIcon name="info" :size="17" />{{ isDemo ? "模拟占用会同步到资源详情时间轴。" : "停用时段持续不可预约；解除预约占用不会重新开放场地。" }}
     </div>
   </div>
   <div class="table-wrap panel">
@@ -156,7 +173,7 @@ async function submit() {
         </tr>
         <tr v-if="!records.length">
           <td colspan="5" class="table-empty">
-            所选日期与资源没有模拟占用。可添加一条，返回资源详情查看变化。
+            {{ isDemo ? "所选日期与资源没有模拟占用。可添加一条，返回资源详情查看变化。" : "所选日期与资源没有占用安排。" }}
           </td>
         </tr>
       </tbody>
@@ -179,6 +196,7 @@ async function submit() {
       <p>释放一条预约不清除课表、维护或其他人的预约。</p>
     </div>
   </section>
+  <ResourceDisableDialog ref="disableDialog" @disabled="onDisabled" />
   <dialog ref="formDialog" class="modal" aria-labelledby="schedule-form-title">
     <form @submit.prevent="submit">
       <div class="modal-heading">
@@ -261,3 +279,7 @@ async function submit() {
     </form>
   </dialog>
 </template>
+
+<style scoped>
+.disable-result { padding: 14px 18px; line-height: 1.7; }
+</style>

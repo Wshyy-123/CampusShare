@@ -1,7 +1,7 @@
 import { reactive } from "vue";
 import { resourcesApi } from "./resources";
 import { reservationsApi } from "./reservations";
-import { HttpError } from "./http";
+import { HttpError, request } from "./http";
 import { localDate } from "../utils/presentation";
 import type {
   Availability,
@@ -12,6 +12,7 @@ import type {
 import type { Booking, Space, SpaceKind } from "../types/campus";
 import type {
   CampusService,
+  DisableResourceResult,
   CampusState,
   OccupancyBlock,
 } from "../services/types";
@@ -97,6 +98,7 @@ export function reservationToBooking(value: Reservation): Booking {
     startTime: value.startTime,
     endTime: value.endTime,
     arrivalDeadline: value.arrivalDeadline,
+    cancelReason: value.cancelReason,
     state: value.status,
   };
 }
@@ -378,6 +380,42 @@ export function createApiCampusService(
     notify("预约已由后端确认，可在“我的预约”查看。");
     return true;
   }
+  async function disableResource(
+    resourceId: string, startTime: string, endTime: string, reason: string,
+  ): Promise<DisableResourceResult> {
+    id(resourceId);
+    instant(startTime);
+    instant(endTime);
+    if (Date.parse(startTime) >= Date.parse(endTime) || !reason.trim() || reason.length > 500)
+      throw new HttpError("INVALID_ARGUMENT", "请填写有效起止时间和500字以内的停用原因");
+    const version = epoch;
+    const result = await request<DisableResourceResult>(
+      `/admin/resources/${encodeURIComponent(resourceId)}/disable-periods`,
+      { method: "POST", body: JSON.stringify({ startTime, endTime, reason: reason.trim() }) },
+    );
+    current(version);
+    requireValue(result && result.resourceId === resourceId && Array.isArray(result.cancelledReservationIds));
+    result.cancelledReservationIds.forEach(id);
+    // 等待写入前发出的可用性查询结束，再丢弃旧缓存并重新读取，防止旧响应覆盖停用结果。
+    await Promise.allSettled([...inFlight].filter(([key]) => key.startsWith(`${resourceId}/`)).map(([, task]) => task));
+    current(version);
+    const dates = new Set([localDate(new Date(startTime)), localDate(new Date(endTime))]);
+    for (const key of Object.keys(cache)) {
+      if (key.startsWith(`${resourceId}/`)) {
+        dates.add(key.slice(resourceId.length + 1));
+        delete cache[key];
+      }
+    }
+    state.occupancy = state.occupancy.filter((record) => record.resourceId !== resourceId);
+    const refreshed = await Promise.allSettled([
+      loadBookings(), ...[...dates].map((date) => loadAvailability(resourceId, date)),
+    ]);
+    current(version);
+    if (refreshed.some((r) => r.status === "rejected"))
+      state.error = "停用已成功，但列表刷新失败，请重新加载后查看；无需重复提交。";
+    notify(`停用已生效，自动取消 ${result.cancelledReservationIds.length} 条受影响预约。`);
+    return result;
+  }
   return {
     mode: "api",
     state,
@@ -388,6 +426,7 @@ export function createApiCampusService(
     slots,
     blocks,
     reserve,
+    disableResource,
     addOccupancy: async () => {
       throw new HttpError(
         "NOT_IMPLEMENTED",

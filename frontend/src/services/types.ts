@@ -28,6 +28,11 @@ export interface CampusState {
   bookingPageSize: number;
 }
 
+export interface DisableResourceResult {
+  resourceId: string;
+  cancelledReservationIds: string[];
+}
+
 // 展示层服务契约。后端DTO通过API适配层转换，不能将前端分组或小时数字直接写进数据库。
 export interface CampusService {
   mode: DataMode;
@@ -40,6 +45,12 @@ export interface CampusService {
   slots(resourceId: string, date: string): TimeSlot[];
   blocks(resourceId: string, date: string): OccupancyBlock[];
   reserve(resourceId: string, date: string, start: number): Promise<boolean>;
+  disableResource(
+    resourceId: string,
+    startTime: string,
+    endTime: string,
+    reason: string,
+  ): Promise<DisableResourceResult>;
   addOccupancy(
     resourceId: string,
     date: string,

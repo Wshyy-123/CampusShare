@@ -83,6 +83,8 @@ export function useCampus() {
     blocks: service.blocks,
     reserve: async (...args: Parameters<typeof service.reserve>) =>
       (await run(() => service.reserve(...args))) ?? false,
+    disableResource: async (...args: Parameters<typeof service.disableResource>) =>
+      run(() => service.disableResource(...args)),
     addOccupancy: async (...args: Parameters<typeof service.addOccupancy>) =>
       (await run(() => service.addOccupancy(...args))) ?? false,
   };

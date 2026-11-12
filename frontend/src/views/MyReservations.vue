@@ -2,7 +2,6 @@
 import { computed, ref, watch, onMounted } from "vue";
 import { RouterLink } from "vue-router";
 import {
-  stateLabels,
   formatHour,
   formatDateTime,
   rules,
@@ -10,6 +9,7 @@ import {
 import { useCampus } from "../composables/useCampus";
 import AppIcon from "../components/common/AppIcon.vue";
 import SpaceScene from "../components/visual/SpaceScene.vue";
+import StatusBadge from "../components/StatusBadge.vue";
 const { state, isDemo, loadBookings } = useCampus();
 const filter = ref("ALL");
 const page = ref(1);
@@ -106,9 +106,7 @@ onMounted(refresh);
           <span class="eyebrow">{{
             isDemo ? "本地演示预约" : `本人预约 #${record.id}`
           }}</span
-          ><span class="status-label" :class="record.state.toLowerCase()">{{
-            stateLabels[record.state]
-          }}</span>
+          ><StatusBadge :status="record.state" :cancel-reason="record.cancelReason ?? null" :resource-type="record.space?.resourceType ?? record.space?.kind ?? ''" />
         </div>
         <h3>{{ record.space?.name ?? `资源 #${record.resourceId}` }}</h3>
         <p v-if="record.space" class="resource-location">
@@ -126,12 +124,12 @@ onMounted(refresh);
             ></template
           >
         </p>
-        <div v-if="record.space" class="booking-rule">
+        <div v-if="record.space && (record.state === 'RESERVED' || record.state === 'CHECKED_IN')" class="booking-rule">
           <AppIcon name="info" :size="15" /><span>{{
             rules[record.space.kind][record.state === "CHECKED_IN" ? 1 : 0]
           }}</span>
         </div>
-        <p v-if="record.arrivalDeadline" class="muted">
+        <p v-if="record.arrivalDeadline && record.state === 'RESERVED'" class="muted">
           服务端到馆期限：{{ formatDateTime(record.arrivalDeadline) }}
         </p>
         <RouterLink
@@ -179,7 +177,7 @@ onMounted(refresh);
         isDemo
           ? "预置记录用于展示不同状态；刷新页面后重置。"
           : "此处仅展示后端返回的本人记录；状态以服务端处理结果为准。"
-      }}<span> 扫码、刷卡和自动释放尚未接入本界面。</span>
+      }}<span v-if="!isDemo"> 座位未到超时由后台自动处理，关闭页面仍生效；可刷新查看最新结果。</span>
     </p>
   </div>
 </template>
