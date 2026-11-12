@@ -1,8 +1,28 @@
 import { reactive } from "vue";
 import { spaces } from "../data/preview";
 import { localDate } from "../utils/presentation";
-import type { CampusService } from "./types";
-import type { Occupancy, Booking } from "../types/campus";
+import type {
+  CampusService,
+  ManagedResource,
+  ManagedResourcePage,
+  ManagedResourceQuery,
+  ResourceDraft,
+} from "./types";
+import type { Occupancy, Booking, SpaceKind } from "../types/campus";
+
+const demoTypes: Record<SpaceKind, string> = {
+  LIBRARY_SEAT: "LIBRARY_SEAT",
+  CLASSROOM: "CLASSROOM",
+  DISCUSSION_ROOM: "DISCUSSION_ROOM",
+  SPORTS: "BADMINTON",
+};
+function kindOf(resourceType: string): SpaceKind {
+  return resourceType === "LIBRARY_SEAT" ||
+    resourceType === "CLASSROOM" ||
+    resourceType === "DISCUSSION_ROOM"
+    ? resourceType
+    : "SPORTS";
+}
 
 export function createDemoCampusService(
   notify: (message: string) => void = () => {},
@@ -84,6 +104,76 @@ export function createDemoCampusService(
     ] as Occupancy[],
     notice: "",
   });
+
+  // 资源管理演示数据：从当前样例资源生成，保存只更新本次页面内存。
+  const managed = reactive<ManagedResource[]>(
+    state.resources.map((space) => ({
+      id: space.id,
+      name: space.name,
+      location: space.location,
+      resourceType: space.resourceType ?? demoTypes[space.kind],
+      unitLabel: space.code,
+      enabled: !space.disabled,
+    })),
+  );
+
+  async function loadManagedResources(
+    query: ManagedResourceQuery,
+  ): Promise<ManagedResourcePage> {
+    const keyword = query.keyword?.trim().toLowerCase() ?? "";
+    const filtered = managed.filter(
+      (item) =>
+        (!keyword ||
+          [item.name, item.location, item.unitLabel].some((text) =>
+            text.toLowerCase().includes(keyword),
+          )) &&
+        (!query.resourceType || item.resourceType === query.resourceType),
+    );
+    const start = (query.page - 1) * query.size;
+    return {
+      items: filtered.slice(start, start + query.size),
+      total: filtered.length,
+      page: query.page,
+      size: query.size,
+    };
+  }
+
+  async function saveResource(
+    resourceId: string | null,
+    draft: ResourceDraft,
+  ): Promise<ManagedResource> {
+    if (resourceId === null) {
+      const created: ManagedResource = { id: String(++nextDemoId), ...draft };
+      managed.push(created);
+      state.resources.push({
+        id: created.id,
+        name: created.name,
+        code: created.unitLabel,
+        kind: kindOf(created.resourceType),
+        resourceType: created.resourceType,
+        location: created.location,
+        tags: [],
+        open: 8,
+        close: 22,
+        variant: 1,
+      });
+      return created;
+    }
+    const target = managed.find((item) => item.id === resourceId);
+    if (!target) throw new Error("演示资源不存在，请刷新后重试");
+    Object.assign(target, draft);
+    const space = state.resources.find((item) => item.id === resourceId);
+    if (space)
+      Object.assign(space, {
+        name: draft.name,
+        location: draft.location,
+        code: draft.unitLabel,
+        kind: kindOf(draft.resourceType),
+        resourceType: draft.resourceType,
+        disabled: !draft.enabled,
+      });
+    return target;
+  }
 
   function blocks(resourceId: string, date: string) {
     return [
@@ -205,6 +295,8 @@ export function createDemoCampusService(
     blocks,
     slots,
     reserve,
+    loadManagedResources,
+    saveResource,
     addOccupancy,
   };
 }

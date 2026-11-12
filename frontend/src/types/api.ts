@@ -79,3 +79,12 @@ export interface CreateReservationPayload {
   endTime: string;
   clientRequestId: string;
 }
+
+// XIA-2 管理员新增/修改资源的请求体，对应 docs/api/admin-resources.yaml。
+export interface ResourcePayload {
+  name: string;
+  location: string;
+  resourceType: string;
+  unitLabel: string;
+  enabled: boolean;
+}

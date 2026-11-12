@@ -2,6 +2,10 @@ import { computed } from "vue";
 import { createDemoCampusService } from "../services/demoCampusService";
 import { createApiCampusService } from "../api/campusApi";
 import { ApiError } from "../api/request";
+import type {
+  ManagedResourceQuery,
+  ResourceDraft,
+} from "../services/types";
 
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 export function notify(message: string) {
@@ -85,5 +89,9 @@ export function useCampus() {
       (await run(() => service.reserve(...args))) ?? false,
     addOccupancy: async (...args: Parameters<typeof service.addOccupancy>) =>
       (await run(() => service.addOccupancy(...args))) ?? false,
+    loadManagedResources: async (query: ManagedResourceQuery) =>
+      run(() => service.loadManagedResources(query)),
+    saveResource: async (resourceId: string | null, draft: ResourceDraft) =>
+      run(() => service.saveResource(resourceId, draft)),
   };
 }

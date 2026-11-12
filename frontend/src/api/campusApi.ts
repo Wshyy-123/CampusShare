@@ -1,11 +1,12 @@
 import { reactive } from "vue";
-import { resourcesApi } from "./resources";
+import { adminResourcesApi, resourcesApi } from "./resources";
 import { reservationsApi } from "./reservations";
 import { HttpError } from "./http";
 import { localDate } from "../utils/presentation";
 import type {
   Availability,
   Resource,
+  ResourcePayload,
   Reservation,
   Interval,
 } from "../types/api";
@@ -13,7 +14,11 @@ import type { Booking, Space, SpaceKind } from "../types/campus";
 import type {
   CampusService,
   CampusState,
+  ManagedResource,
+  ManagedResourcePage,
+  ManagedResourceQuery,
   OccupancyBlock,
+  ResourceDraft,
 } from "../services/types";
 
 const hourMs = 3600000;
@@ -75,6 +80,27 @@ export function resourceToSpace(value: Resource, variant = 1): Space {
     variant,
   };
 }
+function managedResource(value: Resource): ManagedResource {
+  requireValue(value && typeof value === "object");
+  id(value.resourceId);
+  requireValue(
+    typeof value.name === "string" &&
+      typeof value.location === "string" &&
+      typeof value.resourceType === "string" &&
+      value.resourceType.length > 0 &&
+      typeof value.unitLabel === "string" &&
+      typeof value.enabled === "boolean",
+  );
+  return {
+    id: value.resourceId,
+    name: value.name,
+    location: value.location,
+    resourceType: value.resourceType,
+    unitLabel: value.unitLabel,
+    enabled: value.enabled,
+  };
+}
+
 export function reservationToBooking(value: Reservation): Booking {
   requireValue(value && typeof value === "object");
   id(value.reservationId);
@@ -378,6 +404,52 @@ export function createApiCampusService(
     notify("预约已由后端确认，可在“我的预约”查看。");
     return true;
   }
+  async function loadManagedResources(
+    query: ManagedResourceQuery,
+  ): Promise<ManagedResourcePage> {
+    const result = await adminResourcesApi.list({
+      page: query.page,
+      size: query.size,
+      keyword: query.keyword,
+      type: query.resourceType,
+    });
+    requireValue(
+      result &&
+        Array.isArray(result.items) &&
+        Number.isSafeInteger(result.total) &&
+        result.total >= 0 &&
+        Number.isSafeInteger(result.page) &&
+        Number.isSafeInteger(result.size),
+    );
+    return {
+      items: result.items.map(managedResource),
+      total: result.total,
+      page: result.page,
+      size: result.size,
+    };
+  }
+
+  async function saveResource(
+    resourceId: string | null,
+    draft: ResourceDraft,
+  ): Promise<ManagedResource> {
+    const payload: ResourcePayload = {
+      name: draft.name,
+      location: draft.location,
+      resourceType: draft.resourceType,
+      unitLabel: draft.unitLabel,
+      enabled: draft.enabled,
+    };
+    let value: Resource;
+    if (resourceId === null) {
+      value = await adminResourcesApi.create(payload);
+    } else {
+      id(resourceId);
+      value = await adminResourcesApi.update(resourceId, payload);
+    }
+    return managedResource(value);
+  }
+
   return {
     mode: "api",
     state,
@@ -388,6 +460,8 @@ export function createApiCampusService(
     slots,
     blocks,
     reserve,
+    loadManagedResources,
+    saveResource,
     addOccupancy: async () => {
       throw new HttpError(
         "NOT_IMPLEMENTED",

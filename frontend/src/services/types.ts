@@ -28,6 +28,35 @@ export interface CampusState {
   bookingPageSize: number;
 }
 
+// XIA-2 资源管理页使用的展示模型：保留原始资源类型和编号标签，便于回填表单。
+export interface ManagedResource {
+  id: string;
+  name: string;
+  location: string;
+  resourceType: string;
+  unitLabel: string;
+  enabled: boolean;
+}
+export interface ManagedResourceQuery {
+  page: number;
+  size: number;
+  keyword?: string;
+  resourceType?: string;
+}
+export interface ManagedResourcePage {
+  items: ManagedResource[];
+  total: number;
+  page: number;
+  size: number;
+}
+export interface ResourceDraft {
+  name: string;
+  location: string;
+  resourceType: string;
+  unitLabel: string;
+  enabled: boolean;
+}
+
 // 展示层服务契约。后端DTO通过API适配层转换，不能将前端分组或小时数字直接写进数据库。
 export interface CampusService {
   mode: DataMode;
@@ -48,4 +77,10 @@ export interface CampusService {
     kind: Occupancy["kind"],
     note: string,
   ): Promise<boolean>;
+  // 资源维护：真实模式由服务端校验 RESOURCE_ADMIN，演示模式只改本地样例。
+  loadManagedResources(query: ManagedResourceQuery): Promise<ManagedResourcePage>;
+  saveResource(
+    resourceId: string | null,
+    draft: ResourceDraft,
+  ): Promise<ManagedResource>;
 }
