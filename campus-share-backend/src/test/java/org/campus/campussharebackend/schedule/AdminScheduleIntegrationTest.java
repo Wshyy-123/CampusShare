@@ -89,7 +89,7 @@ class AdminScheduleIntegrationTest extends IntegrationTestBase {
                 .andExpect(status().isOk());
         mockMvc.perform(get("/api/v1/admin/schedules").param("date", date))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[?(@.type == 'OPEN' && @.resourceId == '101')]").doesNotExist());
+                .andExpect(jsonPath("$.data[?(@.scheduleId == '" + openingId + "')]").doesNotExist());
     }
 
     @Test

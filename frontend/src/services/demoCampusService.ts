@@ -227,10 +227,6 @@ export function createDemoCampusService(
     return true;
   }
 
-  function scheduleResourceName(resourceId: string): string {
-    return state.resources.find((s) => s.id === resourceId)?.name ?? "";
-  }
-
   async function loadSchedules(_date: string, _resourceId?: string): Promise<void> {
     // 演示数据仅保存在页面内存，列表由页面按筛选条件过滤。
   }
