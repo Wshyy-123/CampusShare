@@ -17,6 +17,8 @@ public interface ResourceMapper {
 
     List<OpeningRecord> lockOpenings(@Param("resourceId") long resourceId, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
+    ResourceRecord lockById(@Param("id") long id);
+
     ResourceRecord findById(@Param("id") long id);
 
     OpeningRecord findCoveringOpening(@Param("resourceId") long resourceId,
@@ -38,4 +40,16 @@ public interface ResourceMapper {
     List<ReservationSlot> listActiveReservationsForDate(@Param("resourceId") long resourceId,
                                                         @Param("dayStart") LocalDateTime dayStart,
                                                         @Param("dayEnd") LocalDateTime dayEnd);
+
+    List<ResourceRecord> listAll(@Param("keyword") String keyword,
+                                 @Param("resourceType") String resourceType,
+                                 @Param("offset") long offset,
+                                 @Param("limit") int limit);
+
+    long countAll(@Param("keyword") String keyword,
+                  @Param("resourceType") String resourceType);
+
+    int insert(ResourceRecord record);
+
+    int update(ResourceRecord record);
 }

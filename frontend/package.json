@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "check:baseline": "node scripts/check-baseline.mjs",
-    "check:api": "node scripts/check-api.mjs",
+    "check:api": "node scripts/check-api.mjs && node scripts/check-lifecycle.mjs && node scripts/check-management.mjs",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview"
   },

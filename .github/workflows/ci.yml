@@ -46,6 +46,8 @@ jobs:
           done
           nullable=$(docker exec ${{ job.services.mysql.id }} mysql -uroot -proot -N -e "SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='campusshare' AND TABLE_NAME='reservation' AND COLUMN_NAME='arrival_deadline'")
           test "$nullable" = "YES"
+          additions=$(docker exec ${{ job.services.mysql.id }} mysql -uroot -proot -N -e "SELECT (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='campusshare' AND TABLE_NAME='resource_opening' AND COLUMN_NAME='note') + (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='campusshare' AND TABLE_NAME='resource_schedule_event')")
+          test "$additions" = "2"
 
   frontend:
     runs-on: ubuntu-latest

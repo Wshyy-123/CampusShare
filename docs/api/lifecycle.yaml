@@ -1,16 +1,17 @@
 openapi: 3.0.3
 info:
   title: CampusShare XIA-14 资源停用接口
-  version: 0.1.0
-  description: 仅描述本次分工。XIA-11 为服务端后台任务，不提供普通用户触发入口。
+  version: 0.2.0
+  description: XIA-11/XIA-14 已接入 campus-share-backend 共享主应用。XIA-11 为服务端后台任务，不提供普通用户触发入口。
 paths:
   /api/v1/admin/resources/{resourceId}/disable-periods:
     post:
       operationId: disableResourcePeriod
       summary: 停用资源区间并取消受影响且尚未开始使用的预约
       description: |
-        需要已认证的 RESOURCE_ADMIN、ROLE_RESOURCE_ADMIN authority 以及启用的数据库账号。
-        CSRF 校验沿用共享 Spring Security 配置，写请求先获取当前令牌。
+        使用共享 Session 登录；CurrentUserProvider 按当前账号重新读取数据库，必须启用且 role 为 RESOURCE_ADMIN。
+        CSRF 校验沿用共享 Spring Security 配置，写请求先 GET /api/v1/auth/csrf，携带响应指定的 headerName/token。
+        startTime/endTime 必须带时区偏移，统一转换为北京时间并保留毫秒；ID 在 JSON 中保持字符串。
         区间为左闭右开，所有写入在一个事务中完成。
         存在 CHECKED_IN 且当前时间已到预约开始时间的重叠预约时整次请求返回409。
         已确认到馆但尚未到预约开始时间的重叠预约可以取消。
@@ -70,12 +71,12 @@ paths:
               schema: {$ref: '#/components/schemas/Error'}
               example: {code: INVALID_ARGUMENT, message: 开始时间必须早于结束时间, data: null, requestId: example-trace-002}
         '401':
-          description: AUTH_REQUIRED，未登录或会话失效
+          description: AUTH_REQUIRED，未登录、会话失效或当前数据库账号已停用
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Error'}
         '403':
-          description: FORBIDDEN，无管理员权限或账号停用；共享安全层的CSRF失败使用CSRF_INVALID
+          description: FORBIDDEN，当前数据库角色无管理员权限；共享安全层的CSRF失败使用CSRF_INVALID
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Error'}

@@ -1,5 +1,6 @@
 -- 隔离测试夹具：H2(MySQL 模式) 与 MySQL 8.4 均可执行。
 -- 不创建/切换数据库，避免影响共享库；测试库由 CI 或本地环境准备。
+DROP TABLE IF EXISTS resource_schedule_event;
 DROP TABLE IF EXISTS violation_record;
 DROP TABLE IF EXISTS reservation_event;
 DROP TABLE IF EXISTS reservation;
@@ -31,6 +32,7 @@ CREATE TABLE resource_opening (
     resource_id BIGINT NOT NULL,
     start_at TIMESTAMP(3) NOT NULL,
     end_at TIMESTAMP(3) NOT NULL,
+    note VARCHAR(200) NULL,
     CONSTRAINT fk_test_opening_resource FOREIGN KEY (resource_id) REFERENCES resource (id)
 );
 
@@ -88,4 +90,19 @@ CREATE TABLE violation_record (
     CONSTRAINT uq_test_violation UNIQUE (reservation_id, violation_type),
     CONSTRAINT fk_test_violation_reservation FOREIGN KEY (reservation_id) REFERENCES reservation (id),
     CONSTRAINT fk_test_violation_user FOREIGN KEY (user_id) REFERENCES app_user (id)
+);
+
+CREATE TABLE resource_schedule_event (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    resource_id BIGINT NOT NULL,
+    schedule_type VARCHAR(16) NOT NULL,
+    schedule_id BIGINT NOT NULL,
+    operation VARCHAR(16) NOT NULL,
+    operator_id BIGINT NOT NULL,
+    occurred_at DATETIME(3) NOT NULL,
+    request_id VARCHAR(64) NOT NULL,
+    before_json LONGTEXT NULL,
+    after_json LONGTEXT NULL,
+    CONSTRAINT fk_schedule_event_resource FOREIGN KEY(resource_id) REFERENCES resource(id),
+    CONSTRAINT fk_schedule_event_operator FOREIGN KEY(operator_id) REFERENCES app_user(id)
 );

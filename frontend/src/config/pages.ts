@@ -22,4 +22,12 @@ export const navigationPages = [
     roles: ["RESOURCE_ADMIN"],
     component: () => import("../views/ScheduleManage.vue"),
   },
+  {
+    to: "/admin/resources",
+    name: "resource-management",
+    label: "资源管理",
+    icon: "settings",
+    roles: ["RESOURCE_ADMIN"],
+    component: () => import("../views/ResourceManage.vue"),
+  },
 ];

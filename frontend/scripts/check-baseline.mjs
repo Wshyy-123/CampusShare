@@ -82,6 +82,40 @@ try {
     "PASS: demo exclusions, conflicts, adjacent intervals and shared occupancy",
   );
 
+  const created = await demo.saveResource(null, {
+    name: "演示新资源",
+    location: "图书馆一楼",
+    resourceType: "LIBRARY_SEAT",
+    unitLabel: "A-99",
+    enabled: true,
+  });
+  const managedPage = await demo.loadManagedResources({
+    page: 1,
+    size: 20,
+    keyword: "演示新资源",
+  });
+  assert.equal(managedPage.total, 1);
+  assert.equal(managedPage.items[0].unitLabel, "A-99");
+  await demo.saveResource(created.id, {
+    name: "演示新资源（停用）",
+    location: "图书馆一楼",
+    resourceType: "LIBRARY_SEAT",
+    unitLabel: "A-99",
+    enabled: false,
+  });
+  const disabledPage = await demo.loadManagedResources({
+    page: 1,
+    size: 20,
+    keyword: "停用",
+  });
+  assert.equal(disabledPage.total, 1);
+  assert.equal(disabledPage.items[0].enabled, false);
+  assert.equal(
+    (await demo.loadManagedResources({ page: 2, size: 20 })).items.length,
+    0,
+  );
+  console.log("PASS: demo resource maintenance stays in page memory only");
+
   const { request } = await server.ssrLoadModule("/src/api/request.ts");
   let calls = 0;
   globalThis.fetch = async () => {
@@ -149,6 +183,7 @@ try {
     "/resources": ["靠窗 A12", "羽毛球 2 号场"],
     "/bookings": ["本地演示预约", "12:00"],
     "/admin/schedules": ["占用时段管理", "模拟教务课表"],
+    "/admin/resources": ["资源管理", "新增资源"],
   };
   for (const page of navigationPages) {
     const router = createRouter({
