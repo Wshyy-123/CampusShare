@@ -1,3 +1,5 @@
+> 本文件记录早期独立模块验证。2026-11-12 共享主工程接入和真实联调结果见 [主工程验证记录](XIA-11-XIA-14-main-integration-2026-11-12.md)。
+
 # XIA-11 / XIA-14 验证记录
 
 执行日期：2026-11-01（Asia/Shanghai）。执行位置：本地 `D:\develop\CampusShare\backend\reservation-lifecycle`。

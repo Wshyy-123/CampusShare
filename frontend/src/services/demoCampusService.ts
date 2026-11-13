@@ -1,8 +1,33 @@
 import { reactive } from "vue";
 import { spaces } from "../data/preview";
 import { localDate } from "../utils/presentation";
-import type { CampusService } from "./types";
-import type { Occupancy, Booking } from "../types/campus";
+import type {
+  CampusService,
+  ManagedResource,
+  ManagedResourcePage,
+  ManagedResourceQuery,
+  ResourceDraft,
+} from "./types";
+import type { Occupancy, Booking, SpaceKind } from "../types/campus";
+
+const demoTypes: Record<SpaceKind, string> = {
+  LIBRARY_SEAT: "LIBRARY_SEAT",
+  CLASSROOM: "CLASSROOM",
+  DISCUSSION_ROOM: "DISCUSSION_ROOM",
+  SPORTS: "BADMINTON",
+};
+function kindOf(resourceType: string): SpaceKind {
+  return resourceType === "LIBRARY_SEAT" ||
+    resourceType === "CLASSROOM" ||
+    resourceType === "DISCUSSION_ROOM"
+    ? resourceType
+    : "SPORTS";
+}
+import type {
+  Schedule,
+  ScheduleCreatePayload,
+  ScheduleUpdatePayload,
+} from "../types/api";
 
 export function createDemoCampusService(
   notify: (message: string) => void = () => {},
@@ -82,8 +107,107 @@ export function createDemoCampusService(
         note: "模拟日常维护",
       },
     ] as Occupancy[],
+    schedules: [
+      {
+        scheduleId: "s1",
+        resourceId: "2",
+        resourceName: "教学楼 · 301 教室",
+        type: "TEACHING",
+        startTime: `${today}T08:00:00+08:00`,
+        endTime: `${today}T12:00:00+08:00`,
+        note: "模拟教务课表 · 软件工程课程",
+      },
+      {
+        scheduleId: "s2",
+        resourceId: "6",
+        resourceName: "北体育馆 · 乒乓球 3 号桌",
+        type: "TEACHING",
+        startTime: `${today}T10:00:00+08:00`,
+        endTime: `${today}T12:00:00+08:00`,
+        note: "模拟体育教学占用",
+      },
+      {
+        scheduleId: "s3",
+        resourceId: "2",
+        resourceName: "教学楼 · 301 教室",
+        type: "OPEN",
+        startTime: `${today}T08:00:00+08:00`,
+        endTime: `${today}T22:00:00+08:00`,
+        note: "日常开放",
+      },
+    ] as Schedule[],
     notice: "",
   });
+
+  // 资源管理演示数据：从当前样例资源生成，保存只更新本次页面内存。
+  const managed = reactive<ManagedResource[]>(
+    state.resources.map((space) => ({
+      id: space.id,
+      name: space.name,
+      location: space.location,
+      resourceType: space.resourceType ?? demoTypes[space.kind],
+      unitLabel: space.code,
+      enabled: !space.disabled,
+    })),
+  );
+
+  async function loadManagedResources(
+    query: ManagedResourceQuery,
+  ): Promise<ManagedResourcePage> {
+    const keyword = query.keyword?.trim().toLowerCase() ?? "";
+    const filtered = managed.filter(
+      (item) =>
+        (!keyword ||
+          [item.name, item.location, item.unitLabel].some((text) =>
+            text.toLowerCase().includes(keyword),
+          )) &&
+        (!query.resourceType || item.resourceType === query.resourceType),
+    );
+    const start = (query.page - 1) * query.size;
+    return {
+      items: filtered.slice(start, start + query.size),
+      total: filtered.length,
+      page: query.page,
+      size: query.size,
+    };
+  }
+
+  async function saveResource(
+    resourceId: string | null,
+    draft: ResourceDraft,
+  ): Promise<ManagedResource> {
+    if (resourceId === null) {
+      const created: ManagedResource = { id: String(++nextDemoId), ...draft };
+      managed.push(created);
+      state.resources.push({
+        id: created.id,
+        name: created.name,
+        code: created.unitLabel,
+        kind: kindOf(created.resourceType),
+        resourceType: created.resourceType,
+        location: created.location,
+        tags: [],
+        open: 8,
+        close: 22,
+        variant: 1,
+      });
+      return created;
+    }
+    const target = managed.find((item) => item.id === resourceId);
+    if (!target) throw new Error("演示资源不存在，请刷新后重试");
+    Object.assign(target, draft);
+    const space = state.resources.find((item) => item.id === resourceId);
+    if (space)
+      Object.assign(space, {
+        name: draft.name,
+        location: draft.location,
+        code: draft.unitLabel,
+        kind: kindOf(draft.resourceType),
+        resourceType: draft.resourceType,
+        disabled: !draft.enabled,
+      });
+    return target;
+  }
 
   function blocks(resourceId: string, date: string) {
     return [
@@ -193,6 +317,82 @@ export function createDemoCampusService(
     return true;
   }
 
+  async function loadSchedules(
+    _date: string,
+    _resourceId?: string,
+  ): Promise<void> {
+    // 演示数据仅保存在页面内存，列表由页面按筛选条件过滤。
+  }
+
+  async function createSchedule(
+    payload: ScheduleCreatePayload,
+  ): Promise<boolean> {
+    const resource = state.resources.find((s) => s.id === payload.resourceId);
+    if (!resource) {
+      notify("请选择有效资源。");
+      return false;
+    }
+    if (
+      !payload.startTime ||
+      !payload.endTime ||
+      Date.parse(payload.startTime) >= Date.parse(payload.endTime)
+    ) {
+      notify("开始时间必须早于结束时间。");
+      return false;
+    }
+    state.schedules.push({
+      scheduleId: String(++nextDemoId),
+      resourceId: payload.resourceId,
+      resourceName: resource.name,
+      type: payload.type,
+      startTime: payload.startTime,
+      endTime: payload.endTime,
+      note: payload.note ?? "",
+    });
+    notify("演示时段安排已保存，仅保存在本次页面中。");
+    return true;
+  }
+
+  async function updateSchedule(
+    scheduleId: string,
+    payload: ScheduleUpdatePayload,
+  ): Promise<boolean> {
+    const index = state.schedules.findIndex((s) => s.scheduleId === scheduleId);
+    if (index < 0) {
+      notify("未找到要修改的时段安排。");
+      return false;
+    }
+    if (
+      !payload.startTime ||
+      !payload.endTime ||
+      Date.parse(payload.startTime) >= Date.parse(payload.endTime)
+    ) {
+      notify("开始时间必须早于结束时间。");
+      return false;
+    }
+    const prev = state.schedules[index];
+    state.schedules[index] = {
+      ...prev,
+      type: payload.type,
+      startTime: payload.startTime,
+      endTime: payload.endTime,
+      note: payload.note ?? "",
+    };
+    notify("演示时段安排已更新。");
+    return true;
+  }
+
+  async function deleteSchedule(scheduleId: string): Promise<boolean> {
+    const index = state.schedules.findIndex((s) => s.scheduleId === scheduleId);
+    if (index < 0) {
+      notify("未找到要删除的时段安排。");
+      return false;
+    }
+    state.schedules.splice(index, 1);
+    notify("演示时段安排已删除。");
+    return true;
+  }
+
   return {
     mode: "demo",
     state,
@@ -205,6 +405,15 @@ export function createDemoCampusService(
     blocks,
     slots,
     reserve,
+    loadManagedResources,
+    saveResource,
     addOccupancy,
+    disableResource: async () => {
+      throw new Error("停用场地需要使用后端接口模式；演示数据不会写入数据库。");
+    },
+    loadSchedules,
+    createSchedule,
+    updateSchedule,
+    deleteSchedule,
   };
 }

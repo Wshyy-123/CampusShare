@@ -8,6 +8,7 @@ public class OpeningRecord {
     private long resourceId;
     private LocalDateTime startAt;
     private LocalDateTime endAt;
+    private String note;
 
     public long getId() {
         return id;
@@ -39,5 +40,13 @@ public class OpeningRecord {
 
     public void setEndAt(LocalDateTime endAt) {
         this.endAt = endAt;
+    }
+
+    public String getNote() {
+        return note;
+    }
+
+    public void setNote(String note) {
+        this.note = note;
     }
 }

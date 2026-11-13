@@ -1,0 +1,315 @@
+openapi: 3.0.3
+info:
+  title: CampusShare XIA-3 时段维护接口
+  version: 0.2.0
+  description: |
+    资源管理员维护开放时间（OPEN）与教学占用（TEACHING）。复用主后端 resource_opening、
+    resource_block 两张表，不另建时段表。写操作在服务端校验登录态、RESOURCE_ADMIN 角色、
+    资源存在性与同类型时段重叠（半开区间）。锁资源后当前读；教学占用不能侵占有效预约，开放调整不能破坏预约覆盖。
+    返回EXTERNAL/DISABLED只读记录；DELETE必须携带type，以免两表ID同号误定位。所有维护留存前后快照。
+servers:
+  - url: /api/v1
+security:
+  - sessionCookie: []
+paths:
+  /admin/schedules:
+    get:
+      operationId: listSchedules
+      summary: 按日期查询开放、教学、外部占用和停用记录
+      parameters:
+        - name: resourceId
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^[1-9][0-9]*$'
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: 省略时使用服务端当天（Asia/Shanghai）
+      responses:
+        '200':
+          description: 时段安排列表，按开始时间升序
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleListResponse'
+        '401':
+          description: 未登录（AUTH_REQUIRED）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: 非资源管理员（FORBIDDEN）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/resources/{resourceId}/openings:
+    post:
+      operationId: createOpening
+      summary: 新增开放时间安排
+      parameters:
+        - name: resourceId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[1-9][0-9]*$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpeningCreateRequest'
+      responses:
+        '201':
+          description: 开放安排已保存
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleResponse'
+        '400':
+          description: 参数不合法（INVALID_ARGUMENT）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: 非资源管理员（FORBIDDEN）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 资源不存在（RESOURCE_NOT_FOUND）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: 与已有开放安排重叠（SCHEDULE_CONFLICT）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/resources/{resourceId}/teaching-blocks:
+    post:
+      operationId: createTeachingBlock
+      summary: 新增教学占用安排
+      parameters:
+        - name: resourceId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[1-9][0-9]*$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeachingBlockCreateRequest'
+      responses:
+        '201':
+          description: 教学占用已保存
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleResponse'
+        '400':
+          description: 参数不合法（INVALID_ARGUMENT）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: 非资源管理员（FORBIDDEN）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 资源不存在（RESOURCE_NOT_FOUND）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: 与已有教学占用重叠（SCHEDULE_CONFLICT）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/schedules/{scheduleId}:
+    put:
+      operationId: updateSchedule
+      summary: 修改时段安排；不支持把开放时间改为教学占用或反之
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[1-9][0-9]*$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleUpdateRequest'
+      responses:
+        '200':
+          description: 时段安排已更新
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleResponse'
+        '400':
+          description: 参数不合法或尝试变更类型（INVALID_ARGUMENT）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: 非资源管理员（FORBIDDEN）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 时段安排不存在（SCHEDULE_NOT_FOUND）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: 与同类安排或有效预约冲突、破坏开放覆盖（SCHEDULE_CONFLICT）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      operationId: deleteSchedule
+      summary: 删除时段安排
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[1-9][0-9]*$'
+        - name: type
+          in: query
+          required: true
+          description: 与scheduleId共同定位；EXTERNAL和DISABLED不可在此删除
+          schema:
+            type: string
+            enum: [OPEN, TEACHING]
+      responses:
+        '200':
+          description: 时段安排已删除
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleDeleteResponse'
+        '400':
+          description: 缺少或非法type（INVALID_ARGUMENT）
+        '409':
+          description: 删除会破坏有效预约的开放覆盖（SCHEDULE_CONFLICT）
+        '403':
+          description: 非资源管理员（FORBIDDEN）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 时段安排不存在（SCHEDULE_NOT_FOUND）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+  schemas:
+    Schedule:
+      type: object
+      required: [scheduleId, resourceId, resourceName, type, startTime, endTime, note]
+      properties:
+        scheduleId: {type: string}
+        resourceId: {type: string}
+        resourceName: {type: string}
+        type: {type: string, enum: [OPEN, TEACHING, EXTERNAL, DISABLED]}
+        startTime: {type: string, format: date-time}
+        endTime: {type: string, format: date-time}
+        note: {type: string, nullable: true}
+    OpeningCreateRequest:
+      type: object
+      required: [startTime, endTime]
+      properties:
+        startTime: {type: string, format: date-time}
+        endTime: {type: string, format: date-time}
+        note: {type: string, maxLength: 200}
+    TeachingBlockCreateRequest:
+      type: object
+      required: [startTime, endTime]
+      properties:
+        startTime: {type: string, format: date-time}
+        endTime: {type: string, format: date-time}
+        reason: {type: string, maxLength: 200, description: 教学说明，空时后端记为“教学占用”}
+    ScheduleUpdateRequest:
+      type: object
+      required: [type, startTime, endTime]
+      properties:
+        type: {type: string, enum: [OPEN, TEACHING]}
+        startTime: {type: string, format: date-time}
+        endTime: {type: string, format: date-time}
+        note: {type: string, maxLength: 200}
+    ScheduleListResponse:
+      type: object
+      required: [code, message, data, requestId]
+      properties:
+        code: {type: string, enum: [OK]}
+        message: {type: string}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Schedule'
+        requestId: {type: string}
+    ScheduleResponse:
+      type: object
+      required: [code, message, data, requestId]
+      properties:
+        code: {type: string, enum: [OK]}
+        message: {type: string}
+        data:
+          $ref: '#/components/schemas/Schedule'
+        requestId: {type: string}
+    ScheduleDeleteResponse:
+      type: object
+      required: [code, message, data, requestId]
+      properties:
+        code: {type: string, enum: [OK]}
+        message: {type: string}
+        data: {nullable: true}
+        requestId: {type: string}
+    Error:
+      type: object
+      required: [code, message, data, requestId]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        data: {nullable: true}
+        requestId: {type: string}

@@ -15,6 +15,12 @@ public interface LifecycleMapper {
     record Candidate(long id, long resourceId) {}
     record Admin(long id, String role, boolean enabled) {}
 
+    @Select("SELECT id, user_id, resource_id, start_at, end_at, accepted_at, status, check_in_at FROM reservation WHERE resource_id = #{resourceId} AND status IN ('RESERVED','CHECKED_IN') ORDER BY id FOR UPDATE")
+    List<Reservation> lockAllActive(long resourceId);
+
+    @Select("SELECT id FROM reservation WHERE resource_id = #{resourceId} ORDER BY id FOR UPDATE")
+    List<Long> lockHistoryIds(long resourceId);
+
     @Select("SELECT id, role, enabled FROM app_user WHERE account = #{account}")
     Admin findAdmin(String account);
 

@@ -16,6 +16,10 @@
         ORDER BY resource_type, name, id
     </select>
 
+    <select id="lockById" resultType="org.campus.campussharebackend.resource.entity.ResourceRecord">
+        SELECT id, name, location, resource_type, unit_label, enabled FROM resource WHERE id = #{id} FOR UPDATE
+    </select>
+
     <select id="findById" resultType="org.campus.campussharebackend.resource.entity.ResourceRecord">
         SELECT id, name, location, resource_type, unit_label, enabled
         FROM resource
@@ -66,6 +70,48 @@
           AND end_at &gt; #{dayStart}
         ORDER BY start_at
     </select>
+
+    <sql id="adminFilter">
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (name LIKE CONCAT('%', #{keyword}, '%')
+                    OR location LIKE CONCAT('%', #{keyword}, '%')
+                    OR unit_label LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="resourceType != null and resourceType != ''">
+                AND resource_type = #{resourceType}
+            </if>
+        </where>
+    </sql>
+
+    <select id="listAll" resultType="org.campus.campussharebackend.resource.entity.ResourceRecord">
+        SELECT id, name, location, resource_type, unit_label, enabled
+        FROM resource
+        <include refid="adminFilter"/>
+        ORDER BY id
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*)
+        FROM resource
+        <include refid="adminFilter"/>
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO resource (name, location, resource_type, unit_label, enabled)
+        VALUES (#{name}, #{location}, #{resourceType}, #{unitLabel}, #{enabled})
+    </insert>
+
+    <update id="update">
+        UPDATE resource
+        SET name = #{name},
+            location = #{location},
+            resource_type = #{resourceType},
+            unit_label = #{unitLabel},
+            enabled = #{enabled}
+        WHERE id = #{id}
+    </update>
 
     <select id="listActiveReservationsForDate" resultType="org.campus.campussharebackend.resource.entity.ReservationSlot">
         SELECT id, start_at, end_at, status

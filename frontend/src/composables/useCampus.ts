@@ -2,6 +2,7 @@ import { computed } from "vue";
 import { createDemoCampusService } from "../services/demoCampusService";
 import { createApiCampusService } from "../api/campusApi";
 import { ApiError } from "../api/request";
+import type { ManagedResourceQuery, ResourceDraft } from "../services/types";
 
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 export function notify(message: string) {
@@ -83,7 +84,28 @@ export function useCampus() {
     blocks: service.blocks,
     reserve: async (...args: Parameters<typeof service.reserve>) =>
       (await run(() => service.reserve(...args))) ?? false,
+    disableResource: async (
+      ...args: Parameters<typeof service.disableResource>
+    ) => run(() => service.disableResource(...args)),
     addOccupancy: async (...args: Parameters<typeof service.addOccupancy>) =>
       (await run(() => service.addOccupancy(...args))) ?? false,
+    loadManagedResources: async (query: ManagedResourceQuery) =>
+      run(() => service.loadManagedResources(query)),
+    saveResource: async (resourceId: string | null, draft: ResourceDraft) =>
+      run(() => service.saveResource(resourceId, draft)),
+    loadSchedules: async (...args: Parameters<typeof service.loadSchedules>) =>
+      (await run(async () => {
+        await service.loadSchedules(...args);
+        return true;
+      })) ?? false,
+    createSchedule: async (
+      ...args: Parameters<typeof service.createSchedule>
+    ) => (await run(() => service.createSchedule(...args))) ?? false,
+    updateSchedule: async (
+      ...args: Parameters<typeof service.updateSchedule>
+    ) => (await run(() => service.updateSchedule(...args))) ?? false,
+    deleteSchedule: async (
+      ...args: Parameters<typeof service.deleteSchedule>
+    ) => (await run(() => service.deleteSchedule(...args))) ?? false,
   };
 }

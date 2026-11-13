@@ -40,6 +40,11 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.BAD_REQUEST.value(), "INVALID_ARGUMENT", message);
     }
 
+    @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Void>> missingParameter(org.springframework.web.bind.MissingServletRequestParameterException exception) {
+        return error(400, "INVALID_ARGUMENT", "缺少参数 " + exception.getParameterName());
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> unreadable(HttpMessageNotReadableException exception) {
         return error(HttpStatus.BAD_REQUEST.value(), "INVALID_ARGUMENT", "请求体格式不正确");

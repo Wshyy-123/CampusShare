@@ -66,6 +66,7 @@ try {
     enabled: false,
   };
   let rows = [];
+  const adminRows = [resources[0], disabled];
   const requests = new Map();
   let csrf = 0;
   let dropNext = false;
@@ -129,6 +130,33 @@ try {
       return success(null);
     }
     if (path === "/api/v1/resources") return success(resources);
+    if (path === "/api/v1/admin/resources") {
+      if (options.method === "POST") {
+        const body = JSON.parse(options.body);
+        assert.equal(body.userId, undefined);
+        const created = { resourceId: "901", ...body };
+        adminRows.unshift(created);
+        return success(created);
+      }
+      const page = Number(parsed.searchParams.get("page") || 1);
+      const size = Number(parsed.searchParams.get("size") || 20);
+      return success({
+        items: adminRows.slice((page - 1) * size, page * size),
+        total: adminRows.length,
+        page,
+        size,
+      });
+    }
+    if (
+      path.startsWith("/api/v1/admin/resources/") &&
+      options.method === "PUT"
+    ) {
+      const body = JSON.parse(options.body);
+      const resourceId = path.split("/").pop();
+      const index = adminRows.findIndex((row) => row.resourceId === resourceId);
+      adminRows[index] = { ...adminRows[index], ...body };
+      return success(adminRows[index]);
+    }
     if (path === "/api/v1/resources/777") return success(disabled);
     if (path.includes("/availability")) {
       const resourceId = path.split("/")[4];
@@ -209,6 +237,22 @@ try {
       }
       return success(result);
     }
+    if (path === "/api/v1/admin/schedules" && options.method === "GET") {
+      return success([]);
+    }
+    if (path.includes("/openings") || path.includes("/teaching-blocks")) {
+      // 学生账号在服务端应被拒绝；这里按 403 返回，验证前端只读边界不把写操作当成功。
+      return new Response(
+        JSON.stringify({ code: "FORBIDDEN", message: "无权限维护时段安排" }),
+        { status: 403 },
+      );
+    }
+    if (path.match(/^\/api\/v1\/admin\/schedules\/\d+$/)) {
+      return new Response(
+        JSON.stringify({ code: "FORBIDDEN", message: "无权限维护时段安排" }),
+        { status: 403 },
+      );
+    }
     throw new Error(`unhandled test URL ${url}`);
   };
   const auth = await server.ssrLoadModule("/src/stores/auth.ts");
@@ -259,13 +303,51 @@ try {
   assert.deepEqual(campus.state.bookings, []);
   await campus.loadBookings(undefined, 1, 10);
   assert.equal(campus.state.bookingTotal, 3);
-  assert.equal(campus.state.scheduleWritable, false);
+  assert.equal(campus.state.scheduleWritable, true);
   assert.equal(
     await campus.addOccupancy(largeId, dateAfter(1), 16, 17, "EXTERNAL", ""),
     false,
   );
+  await campus.loadSchedules(dateAfter(1), largeId);
+  assert.deepEqual(campus.state.schedules, []);
+  assert.equal(
+    await campus.createSchedule({
+      resourceId: largeId,
+      type: "TEACHING",
+      startTime: `${dateAfter(1)}T10:00:00+08:00`,
+      endTime: `${dateAfter(1)}T12:00:00+08:00`,
+      note: "学生尝试占用",
+    }),
+    false,
+  );
   console.log(
     "PASS: lost-response idempotent retry, CSRF refresh, server pagination and read-only schedule boundary",
+  );
+  const managedPage = await campus.loadManagedResources({ page: 1, size: 20 });
+  assert.equal(managedPage.total, 2);
+  assert.equal(managedPage.items[1].enabled, false);
+  const createdResource = await campus.saveResource(null, {
+    name: "接口新增资源",
+    location: "接口图书馆",
+    resourceType: "LIBRARY_SEAT",
+    unitLabel: "S-02",
+    enabled: true,
+  });
+  assert.equal(createdResource.id, "901");
+  assert.equal(
+    (await campus.loadManagedResources({ page: 1, size: 20 })).total,
+    3,
+  );
+  const updatedResource = await campus.saveResource("777", {
+    name: "停用的历史教室",
+    location: "接口教学楼",
+    resourceType: "CLASSROOM",
+    unitLabel: "R-01",
+    enabled: true,
+  });
+  assert.equal(updatedResource.enabled, true);
+  console.log(
+    "PASS: admin resource list, create and update use server results",
   );
   const { createRouter, createMemoryHistory } = await server.ssrLoadModule(
     "virtual:api-check-router",
@@ -290,6 +372,7 @@ try {
   assert.ok(html.includes("接口羽毛球场"));
   assert.ok(html.includes("后端接口模式"));
   assert.ok(!html.includes('href="/admin/schedules"'));
+  assert.ok(!html.includes('href="/admin/resources"'));
   offlineLogout = true;
   await assert.rejects(auth.logout());
   assert.ok(auth.authState.user);

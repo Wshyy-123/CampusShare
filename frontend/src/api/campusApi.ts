@@ -1,19 +1,30 @@
 import { reactive } from "vue";
-import { resourcesApi } from "./resources";
+import { adminResourcesApi, resourcesApi } from "./resources";
 import { reservationsApi } from "./reservations";
-import { HttpError } from "./http";
+import { HttpError, request } from "./http";
+import { schedulesApi } from "./schedules";
 import { localDate } from "../utils/presentation";
 import type {
   Availability,
   Resource,
+  ResourcePayload,
   Reservation,
   Interval,
+  Schedule,
+  ScheduleType,
+  ScheduleCreatePayload,
+  ScheduleUpdatePayload,
 } from "../types/api";
 import type { Booking, Space, SpaceKind } from "../types/campus";
 import type {
   CampusService,
+  DisableResourceResult,
   CampusState,
+  ManagedResource,
+  ManagedResourcePage,
+  ManagedResourceQuery,
   OccupancyBlock,
+  ResourceDraft,
 } from "../services/types";
 
 const hourMs = 3600000;
@@ -51,6 +62,28 @@ function interval(value: Interval) {
   instant(value.endTime);
   requireValue(Date.parse(value.startTime) < Date.parse(value.endTime));
 }
+function scheduleToState(value: unknown): Schedule {
+  requireValue(value && typeof value === "object");
+  const v = value as Record<string, unknown>;
+  id(v.scheduleId);
+  id(v.resourceId);
+  instant(v.startTime);
+  instant(v.endTime);
+  requireValue(
+    ["OPEN", "TEACHING", "EXTERNAL", "DISABLED"].includes(v.type as string),
+  );
+  requireValue(typeof v.resourceName === "string");
+  requireValue(v.note === null || typeof v.note === "string");
+  return {
+    scheduleId: v.scheduleId,
+    resourceId: v.resourceId,
+    resourceName: v.resourceName,
+    type: v.type as Schedule["type"],
+    startTime: v.startTime,
+    endTime: v.endTime,
+    note: v.note ?? "",
+  };
+}
 export function resourceToSpace(value: Resource, variant = 1): Space {
   requireValue(value && typeof value === "object");
   id(value.resourceId);
@@ -75,6 +108,27 @@ export function resourceToSpace(value: Resource, variant = 1): Space {
     variant,
   };
 }
+function managedResource(value: Resource): ManagedResource {
+  requireValue(value && typeof value === "object");
+  id(value.resourceId);
+  requireValue(
+    typeof value.name === "string" &&
+      typeof value.location === "string" &&
+      typeof value.resourceType === "string" &&
+      value.resourceType.length > 0 &&
+      typeof value.unitLabel === "string" &&
+      typeof value.enabled === "boolean",
+  );
+  return {
+    id: value.resourceId,
+    name: value.name,
+    location: value.location,
+    resourceType: value.resourceType,
+    unitLabel: value.unitLabel,
+    enabled: value.enabled,
+  };
+}
+
 export function reservationToBooking(value: Reservation): Booking {
   requireValue(value && typeof value === "object");
   id(value.reservationId);
@@ -97,6 +151,7 @@ export function reservationToBooking(value: Reservation): Booking {
     startTime: value.startTime,
     endTime: value.endTime,
     arrivalDeadline: value.arrivalDeadline,
+    cancelReason: value.cancelReason,
     state: value.status,
   };
 }
@@ -108,11 +163,12 @@ export function createApiCampusService(
     resources: [],
     bookings: [],
     occupancy: [],
+    schedules: [],
     loading: false,
     ready: false,
     error: "",
     notice: "",
-    scheduleWritable: false,
+    scheduleWritable: true,
     bookingTotal: 0,
     bookingPage: 1,
     bookingPageSize: 10,
@@ -122,9 +178,11 @@ export function createApiCampusService(
   const inFlight = new Map<string, Promise<void>>();
   let epoch = 0;
   let bookingRequest = 0;
+  let scheduleRequest = 0;
   function reset() {
     epoch++;
     bookingRequest++;
+    scheduleRequest++;
     pending.clear();
     inFlight.clear();
     for (const key of Object.keys(cache)) delete cache[key];
@@ -132,6 +190,7 @@ export function createApiCampusService(
       resources: [],
       bookings: [],
       occupancy: [],
+      schedules: [],
       ready: false,
       loading: false,
       error: "",
@@ -378,6 +437,204 @@ export function createApiCampusService(
     notify("预约已由后端确认，可在“我的预约”查看。");
     return true;
   }
+  async function loadManagedResources(
+    query: ManagedResourceQuery,
+  ): Promise<ManagedResourcePage> {
+    const version = epoch;
+    const result = await adminResourcesApi.list({
+      page: query.page,
+      size: query.size,
+      keyword: query.keyword,
+      type: query.resourceType,
+    });
+    requireValue(
+      result &&
+        Array.isArray(result.items) &&
+        Number.isSafeInteger(result.total) &&
+        result.total >= 0 &&
+        Number.isSafeInteger(result.page) &&
+        Number.isSafeInteger(result.size),
+    );
+    current(version);
+    return {
+      items: result.items.map(managedResource),
+      total: result.total,
+      page: result.page,
+      size: result.size,
+    };
+  }
+
+  async function saveResource(
+    resourceId: string | null,
+    draft: ResourceDraft,
+  ): Promise<ManagedResource> {
+    const version = epoch;
+    const payload: ResourcePayload = {
+      name: draft.name,
+      location: draft.location,
+      resourceType: draft.resourceType,
+      unitLabel: draft.unitLabel,
+      enabled: draft.enabled,
+    };
+    let value: Resource;
+    if (resourceId === null) {
+      value = await adminResourcesApi.create(payload);
+    } else {
+      id(resourceId);
+      value = await adminResourcesApi.update(resourceId, payload);
+    }
+    current(version);
+    const saved = managedResource(value);
+    await refreshAfterWrite(version, saved.id);
+    return saved;
+  }
+
+  async function disableResource(
+    resourceId: string,
+    startTime: string,
+    endTime: string,
+    reason: string,
+  ): Promise<DisableResourceResult> {
+    id(resourceId);
+    instant(startTime);
+    instant(endTime);
+    if (
+      Date.parse(startTime) >= Date.parse(endTime) ||
+      !reason.trim() ||
+      reason.length > 500
+    )
+      throw new HttpError(
+        "INVALID_ARGUMENT",
+        "请填写有效起止时间和500字以内的停用原因",
+      );
+    const version = epoch;
+    const result = await request<DisableResourceResult>(
+      `/admin/resources/${encodeURIComponent(resourceId)}/disable-periods`,
+      {
+        method: "POST",
+        body: JSON.stringify({ startTime, endTime, reason: reason.trim() }),
+      },
+    );
+    current(version);
+    requireValue(
+      result &&
+        result.resourceId === resourceId &&
+        Array.isArray(result.cancelledReservationIds),
+    );
+    result.cancelledReservationIds.forEach(id);
+    // 等待写入前发出的可用性查询结束，再丢弃旧缓存并重新读取，防止旧响应覆盖停用结果。
+    await Promise.allSettled(
+      [...inFlight]
+        .filter(([key]) => key.startsWith(`${resourceId}/`))
+        .map(([, task]) => task),
+    );
+    current(version);
+    const dates = new Set([
+      localDate(new Date(startTime)),
+      localDate(new Date(endTime)),
+    ]);
+    for (const key of Object.keys(cache)) {
+      if (key.startsWith(`${resourceId}/`)) {
+        dates.add(key.slice(resourceId.length + 1));
+        delete cache[key];
+      }
+    }
+    state.occupancy = state.occupancy.filter(
+      (record) => record.resourceId !== resourceId,
+    );
+    const refreshed = await Promise.allSettled([
+      loadBookings(),
+      ...[...dates].map((date) => loadAvailability(resourceId, date)),
+    ]);
+    current(version);
+    if (refreshed.some((r) => r.status === "rejected"))
+      state.error =
+        "停用已成功，但列表刷新失败，请重新加载后查看；无需重复提交。";
+    notify(
+      `停用已生效，自动取消 ${result.cancelledReservationIds.length} 条受影响预约。`,
+    );
+    return result;
+  }
+  async function refreshAfterWrite(version: number, resourceId?: string) {
+    // 等待写入前的查询，再清掉可用性缓存，避免旧响应覆盖新状态。
+    await Promise.allSettled([...inFlight.values()]);
+    current(version);
+    const entries = Object.keys(cache).filter(
+      (key) => !resourceId || key.startsWith(`${resourceId}/`),
+    );
+    for (const key of entries) delete cache[key];
+    state.occupancy = resourceId
+      ? state.occupancy.filter((row) => row.resourceId !== resourceId)
+      : [];
+    const tasks = entries.map((key) => {
+      const slash = key.indexOf("/");
+      return loadAvailability(key.slice(0, slash), key.slice(slash + 1));
+    });
+    const publicResources = resourcesApi.list().then((rows) => {
+      current(version);
+      requireValue(Array.isArray(rows));
+      state.resources = rows.map((row, index) =>
+        resourceToSpace(row, index + 1),
+      );
+    });
+    const publicResult = await Promise.allSettled([publicResources]);
+    current(version);
+    const results = [
+      ...publicResult,
+      ...(await Promise.allSettled([loadBookings(), ...tasks])),
+    ];
+    current(version);
+    if (results.some((result) => result.status === "rejected"))
+      state.error = "保存已成功，但列表刷新失败，请重新加载；无需重复提交。";
+  }
+  async function loadSchedules(
+    date: string,
+    resourceId?: string,
+  ): Promise<void> {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
+      throw new HttpError("INVALID_ARGUMENT", "请选择有效日期");
+    const version = epoch;
+    const sequence = ++scheduleRequest;
+    const result = await schedulesApi.list({ date, resourceId });
+    current(version);
+    requireValue(Array.isArray(result));
+    const rows = result.map(scheduleToState);
+    if (sequence === scheduleRequest) state.schedules = rows;
+  }
+  async function createSchedule(
+    payload: ScheduleCreatePayload,
+  ): Promise<boolean> {
+    const version = epoch;
+    const saved = scheduleToState(await schedulesApi.create(payload));
+    current(version);
+    await refreshAfterWrite(version, saved.resourceId);
+    notify("时段安排已由后端保存。");
+    return true;
+  }
+  async function updateSchedule(
+    scheduleId: string,
+    payload: ScheduleUpdatePayload,
+  ): Promise<boolean> {
+    const version = epoch;
+    const saved = scheduleToState(
+      await schedulesApi.update(scheduleId, payload),
+    );
+    current(version);
+    await refreshAfterWrite(version, saved.resourceId);
+    notify("时段安排已由后端更新。");
+    return true;
+  }
+  async function deleteSchedule(
+    scheduleId: string,
+    type: ScheduleType,
+  ): Promise<boolean> {
+    const version = epoch;
+    await schedulesApi.remove(scheduleId, type);
+    current(version);
+    await refreshAfterWrite(version);
+    notify("时段安排已由后端删除。");
+    return true;
+  }
   return {
     mode: "api",
     state,
@@ -388,6 +645,13 @@ export function createApiCampusService(
     slots,
     blocks,
     reserve,
+    loadManagedResources,
+    saveResource,
+    disableResource,
+    loadSchedules,
+    createSchedule,
+    updateSchedule,
+    deleteSchedule,
     addOccupancy: async () => {
       throw new HttpError(
         "NOT_IMPLEMENTED",

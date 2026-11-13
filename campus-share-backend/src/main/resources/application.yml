@@ -21,8 +21,9 @@ mybatis:
 
 campusshare:
   seat-no-show:
-    # XIA-11 的座位超时任务在独立模块中，默认关闭；接入后按共享调度启用。
-    enabled: false
+    # XIA-11：主应用启动即补查积压；仅处理座位成功起30分钟未到。
+    enabled: ${CAMPUSSHARE_SEAT_NO_SHOW_ENABLED:true}
+    scan-delay-ms: ${CAMPUSSHARE_SEAT_NO_SHOW_DELAY_MS:30000}
   sports-no-show:
     # 原 XIA-9 任务按全部 RESERVED 扫描，不符合 V1.2 按资源类型处理的要求；
     # 在 XIA-9 负责人改为座位/教室/体育分类前默认关闭，避免误取消座位预约。

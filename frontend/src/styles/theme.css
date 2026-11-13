@@ -474,6 +474,15 @@ h3 {
   background: #292536;
   border-color: #645577;
 }
+.button.danger {
+  background: #3a252a;
+  border-color: #6b3a44;
+  color: #f4bdc7;
+}
+.button.danger:hover {
+  background: #4a2d34;
+  border-color: #8a4a56;
+}
 .hero-art {
   width: 42%;
   height: 100%;
@@ -1147,6 +1156,10 @@ h3 {
   background: #5a3d60;
   color: #f3cff6;
 }
+.open {
+  background: #243b32;
+  color: #a4dfc1;
+}
 .all-day-block {
   position: absolute;
   inset: 0;
@@ -1494,6 +1507,15 @@ h3 {
   padding: 40px 24px;
   text-align: center;
   color: #bfa9cb;
+  font-size: 12px;
+}
+.schedule-table .table-actions {
+  display: flex;
+  gap: 8px;
+}
+.schedule-table .table-actions .button {
+  min-height: 34px;
+  padding: 7px 12px;
   font-size: 12px;
 }
 .tabular {

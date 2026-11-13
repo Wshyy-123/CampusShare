@@ -35,6 +35,7 @@ public abstract class IntegrationTestBase {
 
     @BeforeEach
     void resetData() {
+        jdbcTemplate.update("DELETE FROM resource_schedule_event");
         jdbcTemplate.update("DELETE FROM violation_record");
         jdbcTemplate.update("DELETE FROM reservation_event");
         jdbcTemplate.update("DELETE FROM reservation");
