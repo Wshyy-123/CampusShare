@@ -7,17 +7,16 @@ info:
 
     ## 适用范围
     - 资源类型仅 `BADMINTON`、`TABLE_TENNIS`、`TENNIS`。其他类型调用三个写接口返回 409 `INVALID_STATE`。
-    - 身份由服务端识别，请求体不传 userId。当前工程尚未实现 XIA-1 登录；
-      开发环境以 `app.security.dev-identity-enabled=true` 启用临时请求头 `X-Debug-User-Id`，仅用于本地联调，XIA-1 落地后删除。
+    - 身份由服务端会话识别（XIA-1 登录），请求体不传 userId；写请求需登录态与 CSRF 校验。
     - 时间统一按 Asia/Shanghai 解释，对外使用带 `+08:00` 偏移的 ISO 8601；所有期限判断以服务端时钟为准。
     - 每次响应带 `requestId`，用于定位一次调用。
 
     ## 规则口径（本契约的正式约定）
     | 操作 | 受理条件 | 成功结果 | 重复调用 |
     |---|---|---|---|
-    | 取消 | 本人、体育、status=RESERVED、当前时间早于 startTime | CANCELLED / USER_CANCEL，写一条 CANCEL 事件 | 已是 USER_CANCEL 时幂等返回 200，不重复写事件 |
-    | 签到 | 本人、体育、status=RESERVED、`startTime - checkInEarlyMinutes ≤ now < startTime + checkInGraceMinutes` | CHECKED_IN 并写 checkInAt，写一条 CHECK_IN 事件 | 已 CHECKED_IN 时幂等返回 200 |
-    | 签退 | 本人、体育、status=CHECKED_IN | COMPLETED 并写 checkOutAt，写一条 CHECK_OUT 事件 | 已 COMPLETED 时幂等返回 200 |
+    | 取消 | 本人、体育、status=RESERVED、当前时间早于 startTime | CANCELLED / USER_CANCEL，写一条 CANCELLED 事件 | 已是 USER_CANCEL 时幂等返回 200，不重复写事件 |
+    | 签到 | 本人、体育、status=RESERVED、`startTime - checkInEarlyMinutes ≤ now < startTime + checkInGraceMinutes` | CHECKED_IN 并写 checkInAt，写一条 CHECKED_IN 事件 | 已 CHECKED_IN 时幂等返回 200 |
+    | 签退 | 本人、体育、status=CHECKED_IN | COMPLETED 并写 checkOutAt，写一条 COMPLETED 事件 | 已 COMPLETED 时幂等返回 200 |
 
     默认窗口：`checkInEarlyMinutes=0`、`checkInGraceMinutes=15`，由 `app.sports.*` 配置。
 
@@ -261,7 +260,7 @@ components:
       type: apiKey
       in: cookie
       name: JSESSIONID
-      description: XIA-1 落地后的服务端会话；当前开发环境用 X-Debug-User-Id 代替。
+      description: 服务端会话 Cookie（XIA-1 登录后由 /api/v1/auth/login 建立）。
   parameters:
     ReservationId:
       name: reservationId
