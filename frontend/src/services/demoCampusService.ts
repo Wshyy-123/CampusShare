@@ -397,6 +397,8 @@ export function createDemoCampusService(
     throw new Error("到离场操作需要后端接口模式，演示数据不会登记签到。");
   };
   return {
+    enterLibrary: realAttendanceOnly,
+    leaveLibrary: realAttendanceOnly,
     cancelReservation: realAttendanceOnly,
     checkInAtPlace: realAttendanceOnly,
     checkOutAtPlace: realAttendanceOnly,

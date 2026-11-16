@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: CampusShare 地点签到、体育取消与签退
+  title: CampusShare 地点签到、教室/体育取消与体育签退
   version: 1.0.0
   description: |
     Session身份与CSRF沿用主工程。GET只读，POST写入。扫码绑定具体resourceId并记录QR来源。
@@ -27,13 +27,13 @@ paths:
     parameters:
       - $ref: '#/components/parameters/ReservationId'
     post:
-      summary: 本人体育预约使用前取消，已USER_CANCEL则幂等
+      summary: 本人教室/体育预约使用前取消，已USER_CANCEL则幂等
       responses:
         '200': {description: 返回最新本人ReservationVO}
         '401': {description: 未登录}
         '403': {description: 缺少有效CSRF}
         '404': {description: 不存在或不属于本人}
-        '409': {description: 非体育、已开始或状态不允许}
+        '409': {description: 非教室/体育、已开始或状态不允许}
   /reservations/{reservationId}/check-in:
     parameters:
       - $ref: '#/components/parameters/ReservationId'

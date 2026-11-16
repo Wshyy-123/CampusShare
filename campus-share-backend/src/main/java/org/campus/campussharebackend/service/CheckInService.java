@@ -1,75 +1,105 @@
 package org.campus.campussharebackend.service;
 
+import java.time.Clock;
+import java.util.Objects;
+import org.campus.campussharebackend.common.BusinessException;
+import org.campus.campussharebackend.common.RequestIdContext;
+import org.campus.campussharebackend.common.TimeFormats;
 import org.campus.campussharebackend.entity.Reservation;
+import org.campus.campussharebackend.lifecycle.LifecycleMapper;
+import org.campus.campussharebackend.lifecycle.SeatArrivalDeadline;
 import org.campus.campussharebackend.mapper.ReservationMapper;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.campus.campussharebackend.reservation.mapper.ReservationRepository;
+import org.campus.campussharebackend.resource.entity.ResourceRecord;
+import org.campus.campussharebackend.resource.mapper.ResourceMapper;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-
+/** XIA-10 simulated library card events, using the shared account, database and lock order. */
 @Service
 public class CheckInService {
+    private final ReservationMapper reservations;
+    private final ResourceMapper resources;
+    private final ReservationRepository history;
+    private final LifecycleMapper lifecycle;
+    private final Clock clock;
 
-    @Autowired
-    private ReservationMapper reservationMapper;
-
-    public String swipeCard(Long userId) {
-        // 1. 找到该用户待确认的预约
-        Reservation reservation = reservationMapper.findPendingReservationByUserId(userId);
-        if (reservation == null) {
-            return "刷卡失败：没有找到待确认的座位预约";
-        }
-
-        // 2. 校验时间：预约成功后 30 分钟内
-        LocalDateTime acceptedAt = reservation.getAcceptedAt();
-        LocalDateTime now = LocalDateTime.now();
-        long minutesElapsed = Duration.between(acceptedAt, now).toMinutes();
-
-        if (minutesElapsed > 30) {
-            // 验收标准 3：已超时释放的座位，后续刷卡不能恢复
-            return "刷卡失败：预约已超时（超时 " + minutesElapsed + " 分钟）";
-        }
-
-        // 3. 校验通过，更新状态（到馆确认）
-        reservationMapper.updateToCheckedIn(reservation.getId());
-        return "刷卡成功：欢迎到馆！";
+    public CheckInService(ReservationMapper reservations, ResourceMapper resources,
+                          ReservationRepository history, LifecycleMapper lifecycle,
+                          @Qualifier("lifecycleClock") Clock clock) {
+        this.reservations = reservations;
+        this.resources = resources;
+        this.history = history;
+        this.lifecycle = lifecycle;
+        this.clock = clock;
     }
 
-    // 用户尝试主动取消预约
-    public String cancelReservation(Long reservationId) {
-        // 1. 查询预约记录
-        Reservation r = reservationMapper.findById(reservationId);
-        if (r == null) {
-            return "取消失败：预约不存在";
+    @Transactional
+    public void enter(long userId, long reservationId, long seatId) {
+        var locked = lock(userId, reservationId, seatId);
+        var reservation = locked.reservation();
+        // A repeated entry confirms the same event, including after its original arrival deadline.
+        if ("CHECKED_IN".equals(reservation.getStatus()) && reservation.getCheckInAt() != null) return;
+        if (!"RESERVED".equals(reservation.getStatus())) {
+            throw conflict("当前预约不能刷卡入场，已失效预约不会恢复");
         }
-
-        // 2. 状态校验：只有 RESERVED（待确认）的才能取消
-        if (!"RESERVED".equals(r.getStatus())) {
-            return "取消失败：当前状态不可取消";
+        var now = TimeFormats.now(clock);
+        if (reservation.getAcceptedAt() == null || now.isBefore(reservation.getAcceptedAt())
+                || SeatArrivalDeadline.expired(reservation.getAcceptedAt(), now)
+                || reservation.getEndAt() == null || !now.isBefore(reservation.getEndAt())) {
+            throw conflict("已超过到馆期限或预约已经结束，不能刷卡入场");
         }
-
-        // 3. 时间规则校验 (核心)
-        // 注意：这里假设实体类里有 startAt，如果你们用 acceptedAt 代替预约时间，请换成 r.getAcceptedAt()
-        LocalDate today = LocalDate.now();
-        LocalDate startDate = r.getStartAt().toLocalDate();
-        LocalDateTime now = LocalDateTime.now();
-
-        // 规则一：当天的预约无法取消
-        if (startDate.equals(today)) {
-            return "取消失败：当天的预约无法取消";
+        if (!locked.resource().isEnabled()
+                || lifecycle.lockOverlappingBlock(seatId, reservation.getStartAt(), reservation.getEndAt()) != null) {
+            throw new BusinessException(409, "RESOURCE_UNAVAILABLE", "座位已停用或预约时段不可使用");
         }
-
-        // 规则二：预约当天的早上 7:30 之后，无法取消
-        LocalDateTime deadline = startDate.atTime(7, 30);
-        if (now.isAfter(deadline)) {
-            return "取消失败：已过取消截止时间（预约当天早上7:30）";
+        if (reservations.checkInIfReserved(reservationId, now) != 1) {
+            throw conflict("预约状态已变化，请刷新后重试");
         }
-
-        // 4. 校验通过，执行取消操作
-        reservationMapper.cancelReservationWithReason(r.getId(), "USER_CANCEL");
-
-        return "取消成功";
+        history.insertEvent(reservationId, "CHECKED_IN", userId, now,
+                RequestIdContext.get(), "CARD_SIMULATION_ENTRY:" + seatId);
     }
+
+    @Transactional
+    public void leave(long userId, long reservationId, long seatId) {
+        var reservation = lock(userId, reservationId, seatId).reservation();
+        if ("COMPLETED".equals(reservation.getStatus()) && reservation.getCheckInAt() != null
+                && reservation.getCheckOutAt() != null) return;
+        if (!"CHECKED_IN".equals(reservation.getStatus()) || reservation.getCheckInAt() == null) {
+            throw conflict("尚未刷卡入场或预约已失效，不能刷卡离场");
+        }
+        var now = TimeFormats.now(clock);
+        if (now.isBefore(reservation.getCheckInAt())) throw conflict("离场时间不能早于入场时间");
+        // Library departure ends this booking immediately, including before its reserved end.
+        if (reservations.checkOutIfCheckedIn(reservationId, now) != 1) {
+            throw conflict("预约状态已变化，请刷新后重试");
+        }
+        history.insertEvent(reservationId, "COMPLETED", userId, now,
+                RequestIdContext.get(), "CARD_SIMULATION_EXIT:" + seatId);
+    }
+
+    private LockedSeat lock(long userId, long reservationId, long seatId) {
+        var snapshot = reservations.findById(reservationId);
+        if (snapshot == null || !Objects.equals(snapshot.getUserId(), userId)) throw notFound();
+        var resource = resources.lockById(snapshot.getResourceId());
+        var reservation = reservations.findByIdForUpdate(reservationId);
+        if (resource == null || reservation == null || !Objects.equals(reservation.getUserId(), userId)
+                || !Objects.equals(reservation.getResourceId(), resource.getId())) throw notFound();
+        if (!"LIBRARY_SEAT".equals(resource.getResourceType())) throw conflict("刷卡仅适用于图书馆座位预约");
+        if (resource.getId() != seatId) {
+            throw new BusinessException(409, "WRONG_PLACE", "刷卡座位与预约座位不一致");
+        }
+        return new LockedSeat(reservation, resource);
+    }
+
+    private static BusinessException conflict(String message) {
+        return new BusinessException(409, "INVALID_STATE", message);
+    }
+
+    private static BusinessException notFound() {
+        return new BusinessException(404, "RESERVATION_NOT_FOUND", "预约不存在或无权操作");
+    }
+
+    private record LockedSeat(Reservation reservation, ResourceRecord resource) {}
 }

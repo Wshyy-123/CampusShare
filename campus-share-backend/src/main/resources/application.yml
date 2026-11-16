@@ -27,9 +27,6 @@ campusshare:
   venue-lifecycle:
     enabled: ${CAMPUSSHARE_VENUE_LIFECYCLE_ENABLED:true}
     scan-delay-ms: ${CAMPUSSHARE_VENUE_LIFECYCLE_DELAY_MS:10000}
-  legacy-checkin:
-    # 原 XIA-9/10 的 /api/v1/library 演示入口仍信任请求 userId，默认关闭。
-    enabled: false
 
 app:
   sports:

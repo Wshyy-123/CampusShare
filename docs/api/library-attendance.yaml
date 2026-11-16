@@ -1,0 +1,64 @@
+openapi: 3.0.3
+info:
+  title: CampusShare library card simulation and classroom cancellation
+  version: 1.0.0
+  description: Session account, shared CSRF, opaque string IDs. No physical card integration.
+paths:
+  /api/v1/library/reservations/{reservationId}/check-in:
+    post:
+      summary: Confirm this account's library seat within accepted_at plus 30 minutes
+      parameters:
+        - $ref: '#/components/parameters/ReservationId'
+      requestBody:
+        $ref: '#/components/requestBodies/CardSwipe'
+      responses:
+        '200': {description: Current ReservationVO; entry is idempotent and never toggles exit}
+        '400': {description: Invalid IDs or missing/invalid body or source}
+        '401': {description: Login required}
+        '403': {description: CSRF rejected}
+        '404': {description: Booking absent or owned by another account}
+        '409': {description: Wrong seat, resource unavailable, wrong type/status or arrival expired}
+  /api/v1/library/reservations/{reservationId}/check-out:
+    post:
+      summary: End a checked-in seat booking immediately and save actual departure time
+      parameters:
+        - $ref: '#/components/parameters/ReservationId'
+      requestBody:
+        $ref: '#/components/requestBodies/CardSwipe'
+      responses:
+        '200': {description: Current ReservationVO; repeat departure keeps the original timestamp}
+        '400': {description: Invalid IDs or body}
+        '401': {description: Login required}
+        '403': {description: CSRF rejected}
+        '404': {description: Booking absent or owned by another account}
+        '409': {description: Wrong seat/type or booking never checked in or cancelled}
+  /api/v1/reservations/{reservationId}/cancel:
+    post:
+      summary: Cancel own RESERVED classroom or sports booking strictly before start_at
+      description: No seat/discussion cancellation. USER_CANCEL retries are idempotent; other cancellation reasons stay unchanged.
+      parameters:
+        - $ref: '#/components/parameters/ReservationId'
+      responses:
+        '200': {description: Current ReservationVO with CANCELLED and USER_CANCEL}
+        '401': {description: Login required}
+        '403': {description: CSRF rejected}
+        '404': {description: Booking absent or owned by another account}
+        '409': {description: Unsupported type or status or start time reached}
+components:
+  parameters:
+    ReservationId:
+      in: path
+      name: reservationId
+      required: true
+      schema: {type: string, pattern: '^[1-9][0-9]*$'}
+  requestBodies:
+    CardSwipe:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [resourceId, source]
+            properties:
+              resourceId: {type: string, pattern: '^[1-9][0-9]*$'}
+              source: {type: string, enum: [CARD_SIMULATION]}

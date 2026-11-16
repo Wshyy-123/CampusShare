@@ -71,6 +71,11 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.CONFLICT.value(), "RESERVATION_RETRY", "资源状态同时变化，请使用原clientRequestId重试");
     }
 
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> missingEndpoint(org.springframework.web.servlet.resource.NoResourceFoundException exception) {
+        return error(404, "NOT_FOUND", "接口不存在");
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> unexpected(Exception exception) {
         LOG.error("Unhandled request failure: requestId={}", RequestIdContext.get(), exception);

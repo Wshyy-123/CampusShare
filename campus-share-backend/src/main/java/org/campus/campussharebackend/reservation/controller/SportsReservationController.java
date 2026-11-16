@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 体育预约取消、扫码签到、扫码签退（XIA-7 / XIA-8）。
+ * 教室/体育取消与扫码签到、体育扫码签退（XIA-7 / XIA-8 / XIA-13）。
  * 契约见 docs/api/sports-attendance.yaml；身份取服务端会话，响应复用 ReservationVO。
  */
 @RestController
