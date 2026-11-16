@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useRouter, RouterLink } from "vue-router";
 import AppIcon from "../components/common/AppIcon.vue";
+import PlaceCodeDialog from "../components/PlaceCodeDialog.vue";
 import SpaceScene from "../components/visual/SpaceScene.vue";
 import {
   kindLabels,
@@ -23,6 +24,7 @@ const date = ref(localDate());
 const onlyAvailable = ref(false);
 const selectedSpace = ref<Space | null>(null);
 const chosenHour = ref<number | null>(null);
+const placeCode = ref<InstanceType<typeof PlaceCodeDialog> | null>(null);
 const detailDialog = ref<HTMLDialogElement | null>(null);
 const grid = ref<HTMLElement | null>(null);
 const categories: { id: SpaceKind | "ALL"; label: string; icon: string }[] = [
@@ -417,6 +419,23 @@ function freeLabel(space: Space) {
         @click="detailDialog?.close()"
         >打开完整预约表单<AppIcon name="arrow" :size="16"
       /></RouterLink>
+      <button
+        v-if="
+          selectedSpace.kind === 'SPORTS' || selectedSpace.kind === 'CLASSROOM'
+        "
+        class="button secondary"
+        :disabled="isDemo"
+        @click="
+          detailDialog?.close();
+          placeCode?.open(
+            selectedSpace.id,
+            selectedSpace.name,
+            selectedSpace.location,
+          );
+        "
+      >
+        查看地点二维码
+      </button>
       <h3 class="slot-heading">
         选择一个快捷时段
         <small>{{
@@ -465,4 +484,5 @@ function freeLabel(space: Space) {
       </div>
     </template>
   </dialog>
+  <PlaceCodeDialog ref="placeCode" />
 </template>

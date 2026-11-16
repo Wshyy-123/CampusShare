@@ -51,8 +51,10 @@ class SportsReservationServiceTest {
     void setUp() {
         SportsProperties properties = new SportsProperties();
         Clock clock = Clock.fixed(NOW.atZone(ZoneId.of("Asia/Shanghai")).toInstant(), ZoneId.of("Asia/Shanghai"));
+        var lifecycle = org.mockito.Mockito.mock(org.campus.campussharebackend.lifecycle.LifecycleMapper.class);
+        org.mockito.Mockito.lenient().when(lifecycle.lockOverlappingBlock(org.mockito.ArgumentMatchers.anyLong(), any(), any())).thenReturn(null);
         service = new SportsReservationService(
-                reservationMapper, resourceMapper, reservationRepository, clock, properties);
+                reservationMapper, resourceMapper, reservationRepository, clock, properties, lifecycle);
     }
 
     // ===================== XIA-7 取消 =====================
@@ -137,11 +139,11 @@ class SportsReservationServiceTest {
         stubLock(reservation, "BADMINTON");
         when(reservationMapper.checkInIfReserved(RESERVATION_ID, NOW)).thenReturn(1);
 
-        service.checkIn(USER_ID, RESERVATION_ID);
+        service.checkIn(USER_ID, RESERVATION_ID, RESOURCE_ID);
 
         verify(reservationMapper).checkInIfReserved(RESERVATION_ID, NOW);
         verify(reservationRepository).insertEvent(
-                eq(RESERVATION_ID), eq("CHECKED_IN"), eq(USER_ID), eq(NOW), any(), eq("CHECK_IN"));
+                eq(RESERVATION_ID), eq("CHECKED_IN"), eq(USER_ID), eq(NOW), any(), eq("QR_CHECK_IN:" + RESOURCE_ID));
     }
 
     @Test
@@ -149,7 +151,7 @@ class SportsReservationServiceTest {
         Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_RESERVED, NOW.plusMinutes(10));
         stubLock(reservation, "BADMINTON");
 
-        assertBusinessError(409, "INVALID_STATE", () -> service.checkIn(USER_ID, RESERVATION_ID));
+        assertBusinessError(409, "INVALID_STATE", () -> service.checkIn(USER_ID, RESERVATION_ID, RESOURCE_ID));
         verify(reservationMapper, never()).checkInIfReserved(any(), any());
     }
 
@@ -158,7 +160,7 @@ class SportsReservationServiceTest {
         Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_RESERVED, NOW.minusMinutes(15));
         stubLock(reservation, "BADMINTON");
 
-        assertBusinessError(409, "INVALID_STATE", () -> service.checkIn(USER_ID, RESERVATION_ID));
+        assertBusinessError(409, "INVALID_STATE", () -> service.checkIn(USER_ID, RESERVATION_ID, RESOURCE_ID));
         verify(reservationMapper, never()).checkInIfReserved(any(), any());
     }
 
@@ -168,7 +170,7 @@ class SportsReservationServiceTest {
         reservation.setCancelReason(SportsBookingRules.REASON_NO_SHOW);
         stubLock(reservation, "BADMINTON");
 
-        assertBusinessError(409, "INVALID_STATE", () -> service.checkIn(USER_ID, RESERVATION_ID));
+        assertBusinessError(409, "INVALID_STATE", () -> service.checkIn(USER_ID, RESERVATION_ID, RESOURCE_ID));
         verify(reservationMapper, never()).checkInIfReserved(any(), any());
         verifyNoInteractions(reservationRepository);
     }
@@ -178,7 +180,7 @@ class SportsReservationServiceTest {
         Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_CHECKED_IN, NOW.minusMinutes(5));
         stubLock(reservation, "BADMINTON");
 
-        service.checkIn(USER_ID, RESERVATION_ID);
+        service.checkIn(USER_ID, RESERVATION_ID, RESOURCE_ID);
 
         verify(reservationMapper, never()).checkInIfReserved(any(), any());
         verifyNoInteractions(reservationRepository);
@@ -188,15 +190,15 @@ class SportsReservationServiceTest {
 
     @Test
     void checkOutCompletesReservation() {
-        Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_CHECKED_IN, NOW.minusMinutes(30));
+        Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_CHECKED_IN, NOW.minusHours(1));
         stubLock(reservation, "BADMINTON");
         when(reservationMapper.checkOutIfCheckedIn(RESERVATION_ID, NOW)).thenReturn(1);
 
-        service.checkOut(USER_ID, RESERVATION_ID);
+        service.checkOut(USER_ID, RESERVATION_ID, RESOURCE_ID);
 
         verify(reservationMapper).checkOutIfCheckedIn(RESERVATION_ID, NOW);
         verify(reservationRepository).insertEvent(
-                eq(RESERVATION_ID), eq("COMPLETED"), eq(USER_ID), eq(NOW), any(), eq("CHECK_OUT"));
+                eq(RESERVATION_ID), eq("COMPLETED"), eq(USER_ID), eq(NOW), any(), eq("QR_CHECK_OUT:" + RESOURCE_ID));
     }
 
     @Test
@@ -204,16 +206,17 @@ class SportsReservationServiceTest {
         Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_RESERVED, NOW.minusMinutes(30));
         stubLock(reservation, "BADMINTON");
 
-        assertBusinessError(409, "INVALID_STATE", () -> service.checkOut(USER_ID, RESERVATION_ID));
+        assertBusinessError(409, "INVALID_STATE", () -> service.checkOut(USER_ID, RESERVATION_ID, RESOURCE_ID));
         verify(reservationMapper, never()).checkOutIfCheckedIn(any(), any());
     }
 
     @Test
     void repeatedCheckOutIsNoOp() {
-        Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_COMPLETED, NOW.minusMinutes(30));
+        Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_COMPLETED, NOW.minusHours(1));
+        reservation.setCheckOutAt(NOW);
         stubLock(reservation, "BADMINTON");
 
-        service.checkOut(USER_ID, RESERVATION_ID);
+        service.checkOut(USER_ID, RESERVATION_ID, RESOURCE_ID);
 
         verify(reservationMapper, never()).checkOutIfCheckedIn(any(), any());
     }

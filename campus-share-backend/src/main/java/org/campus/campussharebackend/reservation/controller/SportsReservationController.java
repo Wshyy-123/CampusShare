@@ -7,6 +7,9 @@ import org.campus.campussharebackend.reservation.service.ReservationService;
 import org.campus.campussharebackend.reservation.vo.ReservationVO;
 import org.campus.campussharebackend.service.SportsReservationService;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
+import jakarta.validation.Valid;
+import org.campus.campussharebackend.reservation.dto.PlaceScanRequest;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -39,16 +42,16 @@ public class SportsReservationController {
     }
 
     @PostMapping("/{reservationId}/check-in")
-    public ApiResponse<ReservationVO> checkIn(@PathVariable String reservationId) {
+    public ApiResponse<ReservationVO> checkIn(@PathVariable String reservationId, @Valid @RequestBody PlaceScanRequest scan) {
         long id = parseReservationId(reservationId);
-        sportsReservationService.checkIn(currentUserProvider.require().userId(), id);
+        sportsReservationService.checkIn(currentUserProvider.require().userId(), id, parseReservationId(scan.resourceId()));
         return ApiResponse.ok("签到成功", reservationService.detail(id));
     }
 
     @PostMapping("/{reservationId}/check-out")
-    public ApiResponse<ReservationVO> checkOut(@PathVariable String reservationId) {
+    public ApiResponse<ReservationVO> checkOut(@PathVariable String reservationId, @Valid @RequestBody PlaceScanRequest scan) {
         long id = parseReservationId(reservationId);
-        sportsReservationService.checkOut(currentUserProvider.require().userId(), id);
+        sportsReservationService.checkOut(currentUserProvider.require().userId(), id, parseReservationId(scan.resourceId()));
         return ApiResponse.ok("签退成功", reservationService.detail(id));
     }
 

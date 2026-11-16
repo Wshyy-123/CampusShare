@@ -21,16 +21,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>默认跳过；设置 MYSQL_TEST=true 并让应用连到已应用全部迁移的数据库后执行。
  * 测试在事务内执行并回滚。</p>
  */
-@SpringBootTest(properties = {
-        "campusshare.sports-no-show.enabled=false",
-        "campusshare.seat-no-show.enabled=false"
-})
-@EnabledIfEnvironmentVariable(named = "MYSQL_TEST", matches = "true")
-@Transactional
-class SportsReservationIntegrationTest {
+class SportsReservationIntegrationTest extends org.campus.campussharebackend.support.IntegrationTestBase {
 
-    private static final long SEAT_RESOURCE_ID = 1L;
-    private static final long SPORTS_RESOURCE_ID = 2L;
+    private static final long SEAT_RESOURCE_ID = 101L;
+    private static final long SPORTS_RESOURCE_ID = 201L;
     private static final long STUDENT_USER_ID = 1L;
     private static final long OTHER_USER_ID = 2L;
     private static final AtomicLong ID_SEQUENCE = new AtomicLong(9_000_000L);
@@ -47,7 +41,7 @@ class SportsReservationIntegrationTest {
     @Test
     void cancelReleasesOccupationAndRepeatedCancelDoesNotWriteAgain() {
         long id = insertReservation(STUDENT_USER_ID, SPORTS_RESOURCE_ID,
-                LocalDateTime.now().plusHours(2), LocalDateTime.now().plusHours(3), "RESERVED", null);
+                LocalDateTime.now(ZONE).plusHours(2), LocalDateTime.now(ZONE).plusHours(3), "RESERVED", null);
 
         sportsReservationService.cancel(STUDENT_USER_ID, id);
 
@@ -64,7 +58,7 @@ class SportsReservationIntegrationTest {
     @Test
     void cancelAfterStartIsRejected() {
         long id = insertReservation(STUDENT_USER_ID, SPORTS_RESOURCE_ID,
-                LocalDateTime.now().minusMinutes(1), LocalDateTime.now().plusMinutes(59), "RESERVED", null);
+                LocalDateTime.now(ZONE).minusMinutes(1), LocalDateTime.now(ZONE).plusMinutes(59), "RESERVED", null);
 
         assertBusinessError(409, "INVALID_STATE", () -> sportsReservationService.cancel(STUDENT_USER_ID, id));
         assertThat(statusOf(id)).isEqualTo("RESERVED");
@@ -74,7 +68,7 @@ class SportsReservationIntegrationTest {
     @Test
     void seatReservationCannotUseSportsCancel() {
         long id = insertReservation(STUDENT_USER_ID, SEAT_RESOURCE_ID,
-                LocalDateTime.now().plusHours(2), LocalDateTime.now().plusHours(3), "RESERVED", null);
+                LocalDateTime.now(ZONE).plusHours(2), LocalDateTime.now(ZONE).plusHours(3), "RESERVED", null);
 
         assertBusinessError(409, "INVALID_STATE", () -> sportsReservationService.cancel(STUDENT_USER_ID, id));
     }
@@ -82,7 +76,7 @@ class SportsReservationIntegrationTest {
     @Test
     void otherUsersReservationIsReportedAsNotFound() {
         long id = insertReservation(OTHER_USER_ID, SPORTS_RESOURCE_ID,
-                LocalDateTime.now().plusHours(2), LocalDateTime.now().plusHours(3), "RESERVED", null);
+                LocalDateTime.now(ZONE).plusHours(2), LocalDateTime.now(ZONE).plusHours(3), "RESERVED", null);
 
         assertBusinessError(404, "RESERVATION_NOT_FOUND",
                 () -> sportsReservationService.cancel(STUDENT_USER_ID, id));
@@ -91,9 +85,9 @@ class SportsReservationIntegrationTest {
     @Test
     void checkInInsideWindowRecordsTimeAndStatus() {
         long id = insertReservation(STUDENT_USER_ID, SPORTS_RESOURCE_ID,
-                LocalDateTime.now().minusMinutes(1), LocalDateTime.now().plusMinutes(59), "RESERVED", null);
+                LocalDateTime.now(ZONE).minusMinutes(1), LocalDateTime.now(ZONE).plusMinutes(59), "RESERVED", null);
 
-        sportsReservationService.checkIn(STUDENT_USER_ID, id);
+        sportsReservationService.checkIn(STUDENT_USER_ID, id, SPORTS_RESOURCE_ID);
 
         assertThat(statusOf(id)).isEqualTo("CHECKED_IN");
         assertThat(checkInAtOf(id)).isNotNull();
@@ -103,16 +97,16 @@ class SportsReservationIntegrationTest {
     @Test
     void checkInBeforeStartIsRejected() {
         long id = insertReservation(STUDENT_USER_ID, SPORTS_RESOURCE_ID,
-                LocalDateTime.now().plusMinutes(30), LocalDateTime.now().plusMinutes(90), "RESERVED", null);
+                LocalDateTime.now(ZONE).plusMinutes(30), LocalDateTime.now(ZONE).plusMinutes(90), "RESERVED", null);
 
-        assertBusinessError(409, "INVALID_STATE", () -> sportsReservationService.checkIn(STUDENT_USER_ID, id));
+        assertBusinessError(409, "INVALID_STATE", () -> sportsReservationService.checkIn(STUDENT_USER_ID, id, SPORTS_RESOURCE_ID));
         assertThat(statusOf(id)).isEqualTo("RESERVED");
     }
 
     @Test
     void noShowCancellationCannotBeRestoredByLateCheckIn() {
         long id = insertReservation(OTHER_USER_ID, SPORTS_RESOURCE_ID,
-                LocalDateTime.now().minusMinutes(20), LocalDateTime.now().plusMinutes(40), "RESERVED", null);
+                LocalDateTime.now(ZONE).minusMinutes(20), LocalDateTime.now(ZONE).plusMinutes(40), "RESERVED", null);
 
         assertThat(sportsNoShowService.handle(id)).isTrue();
         assertThat(statusOf(id)).isEqualTo("CANCELLED");
@@ -120,7 +114,7 @@ class SportsReservationIntegrationTest {
         assertThat(countViolations(id)).isEqualTo(1);
 
         assertBusinessError(409, "INVALID_STATE",
-                () -> sportsReservationService.checkIn(OTHER_USER_ID, id));
+                () -> sportsReservationService.checkIn(OTHER_USER_ID, id, SPORTS_RESOURCE_ID));
         assertThat(statusOf(id)).isEqualTo("CANCELLED");
         assertThat(countEvents(id, "CHECKED_IN")).isZero();
 
@@ -132,7 +126,7 @@ class SportsReservationIntegrationTest {
     @Test
     void noShowJobLeavesSeatReservationsUntouched() {
         long id = insertReservation(STUDENT_USER_ID, SEAT_RESOURCE_ID,
-                LocalDateTime.now().minusMinutes(20), LocalDateTime.now().plusMinutes(40), "RESERVED", null);
+                LocalDateTime.now(ZONE).minusMinutes(20), LocalDateTime.now(ZONE).plusMinutes(40), "RESERVED", null);
 
         assertThat(sportsNoShowService.handle(id)).isFalse();
         assertThat(statusOf(id)).isEqualTo("RESERVED");
@@ -141,10 +135,10 @@ class SportsReservationIntegrationTest {
     @Test
     void checkOutCompletesReservation() {
         long id = insertReservation(STUDENT_USER_ID, SPORTS_RESOURCE_ID,
-                LocalDateTime.now().minusMinutes(30), LocalDateTime.now().plusMinutes(30), "CHECKED_IN",
-                LocalDateTime.now().minusMinutes(30));
+                LocalDateTime.now(ZONE).minusMinutes(61), LocalDateTime.now(ZONE).minusMinutes(1), "CHECKED_IN",
+                LocalDateTime.now(ZONE).minusMinutes(30));
 
-        sportsReservationService.checkOut(STUDENT_USER_ID, id);
+        sportsReservationService.checkOut(STUDENT_USER_ID, id, SPORTS_RESOURCE_ID);
 
         assertThat(statusOf(id)).isEqualTo("COMPLETED");
         assertThat(checkOutAtOf(id)).isNotNull();
@@ -167,13 +161,13 @@ class SportsReservationIntegrationTest {
         jdbcTemplate.update("""
                         INSERT INTO reservation
                             (id, user_id, resource_id, client_request_id, accepted_at, arrival_deadline,
-                             start_at, end_at, status, check_in_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             start_at, end_at, status, check_in_at, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """,
                 id, userId, resourceId, "it-" + id,
-                Timestamp.valueOf(startAt), Timestamp.valueOf(startAt.plusMinutes(15)),
-                Timestamp.valueOf(startAt), Timestamp.valueOf(endAt), status,
-                checkInAt == null ? null : Timestamp.valueOf(checkInAt));
+                startAt, startAt.plusMinutes(15),
+                startAt, endAt, status,
+                checkInAt == null ? null : checkInAt);
         return id;
     }
 

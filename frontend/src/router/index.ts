@@ -33,6 +33,12 @@ const router = createRouter({
       component: () => import("../views/ReservationDetailView.vue"),
       meta: { title: "预约详情" },
     },
+    {
+      path: "/places/:id",
+      name: "place-attendance",
+      component: () => import("../views/PlaceAttendanceView.vue"),
+      meta: { title: "地点签到" },
+    },
     { path: "/reservations", redirect: "/bookings" },
     {
       path: "/reservations/:id",

@@ -3,6 +3,7 @@ import type {
   ScheduleCreatePayload,
   ScheduleUpdatePayload,
 } from "../types/api";
+import type { Reservation, PlaceScanPayload } from "../types/api";
 import type { Booking, Occupancy, Space } from "../types/campus";
 
 export type DataMode = "demo" | "api";
@@ -79,6 +80,15 @@ export interface CampusService {
   // API模式须读取服务端返回的可用性缓存；不能在浏览器代替服务端裁定冲突。
   slots(resourceId: string, date: string): TimeSlot[];
   blocks(resourceId: string, date: string): OccupancyBlock[];
+  cancelReservation(reservationId: string): Promise<Reservation>;
+  checkInAtPlace(
+    reservationId: string,
+    scan: PlaceScanPayload,
+  ): Promise<Reservation>;
+  checkOutAtPlace(
+    reservationId: string,
+    scan: PlaceScanPayload,
+  ): Promise<Reservation>;
   reserve(resourceId: string, date: string, start: number): Promise<boolean>;
   disableResource(
     resourceId: string,

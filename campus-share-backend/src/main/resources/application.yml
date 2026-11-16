@@ -24,9 +24,9 @@ campusshare:
     # XIA-11：主应用启动即补查积压；仅处理座位成功起30分钟未到。
     enabled: ${CAMPUSSHARE_SEAT_NO_SHOW_ENABLED:true}
     scan-delay-ms: ${CAMPUSSHARE_SEAT_NO_SHOW_DELAY_MS:30000}
-  sports-no-show:
-    # XIA-7/XIA-8：任务已改为只处理体育资源、按状态条件逐条事务处理，可安全开启。
-    enabled: ${CAMPUSSHARE_SPORTS_NO_SHOW_ENABLED:true}
+  venue-lifecycle:
+    enabled: ${CAMPUSSHARE_VENUE_LIFECYCLE_ENABLED:true}
+    scan-delay-ms: ${CAMPUSSHARE_VENUE_LIFECYCLE_DELAY_MS:10000}
   legacy-checkin:
     # 原 XIA-9/10 的 /api/v1/library 演示入口仍信任请求 userId，默认关闭。
     enabled: false

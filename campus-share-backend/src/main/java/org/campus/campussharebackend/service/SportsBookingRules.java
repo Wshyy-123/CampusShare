@@ -8,7 +8,7 @@ import java.util.Set;
 /**
  * 体育预约的纯规则判断。不依赖数据库与 Spring，便于对边界时刻做单元测试。
  *
- * <p>口径来源见 docs/api/sports-attendance.yaml；其中标为"待 PO 确认"的窗口由配置调整。</p>
+ * <p>口径来源见 docs/api/sports-attendance.yaml；窗口执行统一业务基线，服务另校验预约结束时间。</p>
  */
 public final class SportsBookingRules {
 

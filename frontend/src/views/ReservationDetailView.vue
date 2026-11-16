@@ -4,11 +4,15 @@ import { useRoute } from "vue-router";
 import { errorMessage } from "../api/http";
 import { reservationsApi } from "../api/reservations";
 import type { Reservation } from "../types/api";
+import { useCampus } from "../composables/useCampus";
+import PlaceCodeDialog from "../components/PlaceCodeDialog.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 
 const SPORTS_TYPES = ["BADMINTON", "TABLE_TENNIS", "TENNIS"];
 
 const route = useRoute();
+const campus = useCampus();
+const placeCode = ref<InstanceType<typeof PlaceCodeDialog> | null>(null);
 const reservation = ref<Reservation | null>(null);
 const loading = ref(true);
 const error = ref("");
@@ -25,23 +29,9 @@ const canCancel = computed(() => {
   const current = reservation.value;
   if (!current || !isSports.value) return false;
   return (
-    current.status === "RESERVED" &&
-    Date.parse(current.startTime) > Date.now()
+    current.status === "RESERVED" && Date.parse(current.startTime) > Date.now()
   );
 });
-const canCheckIn = computed(
-  () =>
-    isSports.value &&
-    reservation.value !== null &&
-    reservation.value.status === "RESERVED",
-);
-const canCheckOut = computed(
-  () =>
-    isSports.value &&
-    reservation.value !== null &&
-    reservation.value.status === "CHECKED_IN",
-);
-
 async function load() {
   loading.value = true;
   error.value = "";
@@ -54,37 +44,18 @@ async function load() {
   }
 }
 
-async function refreshSilently() {
-  try {
-    reservation.value = await reservationsApi.detail(String(route.params.id));
-  } catch {
-    // 刷新失败时保留当前提示，不覆盖错误信息
-  }
-}
-
-async function runAction(action: "cancel" | "check-in" | "check-out") {
+async function cancel() {
   const current = reservation.value;
-  if (!current) return;
+  if (!current || actionLoading.value) return;
   actionLoading.value = true;
   actionMessage.value = "";
   actionError.value = "";
   try {
-    const updated =
-      action === "cancel"
-        ? await reservationsApi.cancel(current.reservationId)
-        : action === "check-in"
-          ? await reservationsApi.checkIn(current.reservationId)
-          : await reservationsApi.checkOut(current.reservationId);
-    reservation.value = updated;
-    actionMessage.value =
-      action === "cancel"
-        ? "已取消，场地已释放"
-        : action === "check-in"
-          ? "签到成功，已记录到馆时间"
-          : "签退成功，场地已释放";
-  } catch (exception) {
-    actionError.value = errorMessage(exception);
-    await refreshSilently();
+    const result = await campus.cancelReservation(current.reservationId);
+    if (result) {
+      reservation.value = result;
+      actionMessage.value = "已取消，场地已释放";
+    } else actionError.value = campus.state.error || "取消未成功";
   } finally {
     actionLoading.value = false;
   }
@@ -196,33 +167,33 @@ onMounted(load);
       <div v-if="isSports" class="card panel">
         <h2>体育场地操作</h2>
         <p class="small">
-          使用前可取消；开始后 15 分钟内签到；使用结束签退。操作结果以服务端返回为准。
+          使用前可取消；开始后 15
+          分钟内签到；使用结束签退。操作结果以服务端返回为准。
         </p>
         <div style="display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0">
           <button
             v-if="canCancel"
             class="btn"
             :disabled="actionLoading"
-            @click="runAction('cancel')"
+            @click="cancel"
           >
             使用前取消
           </button>
           <button
-            v-if="canCheckIn"
-            class="btn btn-primary"
-            :disabled="actionLoading"
-            @click="runAction('check-in')"
+            class="button secondary"
+            @click="
+              placeCode?.open(
+                reservation.resourceId,
+                reservation.resourceName,
+                reservation.location,
+              )
+            "
           >
-            扫码签到
+            查看地点二维码
           </button>
-          <button
-            v-if="canCheckOut"
-            class="btn btn-primary"
-            :disabled="actionLoading"
-            @click="runAction('check-out')"
-          >
-            扫码签退
-          </button>
+          <p class="small">
+            到场后使用手机扫描现场地点码签到。预约结束后，再次扫描并选择记录签退。
+          </p>
         </div>
         <p v-if="actionMessage" class="alert alert-success">
           {{ actionMessage }}
@@ -231,8 +202,9 @@ onMounted(load);
       </div>
 
       <div class="alert alert-warning">
-        签到和签退的扫码入口、其他资源类型的自动释放仍在对应工作项中接入；本页展示的是服务端真实状态。
+        教室和体育到期由后台自动释放；体育签退单独记录，不依赖签退才能释放。
       </div>
     </div>
+    <PlaceCodeDialog ref="placeCode" />
   </section>
 </template>

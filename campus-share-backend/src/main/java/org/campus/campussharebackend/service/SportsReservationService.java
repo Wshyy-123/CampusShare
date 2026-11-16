@@ -39,17 +39,19 @@ public class SportsReservationService {
     private final ReservationRepository reservationRepository;
     private final Clock clock;
     private final SportsProperties sportsProperties;
+    private final org.campus.campussharebackend.lifecycle.LifecycleMapper lifecycle;
 
     public SportsReservationService(ReservationMapper reservationMapper,
                                     ResourceMapper resourceMapper,
                                     ReservationRepository reservationRepository,
                                     @Qualifier("lifecycleClock") Clock clock,
-                                    SportsProperties sportsProperties) {
+                                    SportsProperties sportsProperties, org.campus.campussharebackend.lifecycle.LifecycleMapper lifecycle) {
         this.reservationMapper = reservationMapper;
         this.resourceMapper = resourceMapper;
         this.reservationRepository = reservationRepository;
         this.clock = clock;
         this.sportsProperties = sportsProperties;
+        this.lifecycle = lifecycle;
     }
 
     @Transactional
@@ -80,11 +82,18 @@ public class SportsReservationService {
     }
 
     @Transactional
-    public void checkIn(long userId, long reservationId) {
+    public void checkIn(long userId, long reservationId, long scannedResourceId) {
         LockedReservation locked = lock(userId, reservationId);
-        requireSports(locked.resource(), "签到");
+        if (!isSportsResource(locked.resource().getResourceType()) && !"CLASSROOM".equals(locked.resource().getResourceType()))
+            throw new BusinessException(409, "INVALID_STATE", "该资源不支持地点码签到");
+        requirePlace(locked, scannedResourceId);
         Reservation reservation = locked.reservation();
 
+        LocalDateTime now = now();
+        if (reservation.getEndAt() == null || !now.isBefore(reservation.getEndAt()))
+            throw new BusinessException(409, "INVALID_STATE", "预约已经结束，不能签到");
+        if (!locked.resource().isEnabled() || lifecycle.lockOverlappingBlock(locked.resource().getId(), reservation.getStartAt(), reservation.getEndAt()) != null)
+            throw new BusinessException(409, "RESOURCE_UNAVAILABLE", "该地点在预约范围内不可使用");
         if (STATUS_CHECKED_IN.equals(reservation.getStatus())) {
             return;
         }
@@ -92,7 +101,6 @@ public class SportsReservationService {
             throw new BusinessException(409, "INVALID_STATE", checkInBlockedMessage(reservation.getStatus()));
         }
 
-        LocalDateTime now = now();
         int earlyMinutes = sportsProperties.getCheckInEarlyMinutes();
         int graceMinutes = sportsProperties.getCheckInGraceMinutes();
         if (!inCheckInWindow(reservation, now, earlyMinutes, graceMinutes)) {
@@ -101,27 +109,35 @@ public class SportsReservationService {
         if (reservationMapper.checkInIfReserved(reservationId, now) != 1) {
             throw new BusinessException(409, "INVALID_STATE", "预约状态已变化，请刷新后重试");
         }
-        recordEvent(reservationId, "CHECKED_IN", userId, now, "CHECK_IN");
+        recordEvent(reservationId, "CHECKED_IN", userId, now, "QR_CHECK_IN:" + scannedResourceId);
     }
 
     @Transactional
-    public void checkOut(long userId, long reservationId) {
+    public void checkOut(long userId, long reservationId, long scannedResourceId) {
         LockedReservation locked = lock(userId, reservationId);
         requireSports(locked.resource(), "签退");
+        requirePlace(locked, scannedResourceId);
         Reservation reservation = locked.reservation();
-
+        LocalDateTime now = now();
+        if (reservation.getEndAt() == null || now.isBefore(reservation.getEndAt()))
+            throw new BusinessException(409, "INVALID_STATE", "预约尚未结束，不能提前签退释放");
         if (STATUS_COMPLETED.equals(reservation.getStatus())) {
+            if (reservation.getCheckOutAt() != null) return;
+            if (reservation.getCheckInAt() == null) throw new BusinessException(409, "INVALID_STATE", "没有可签退的到场记录");
+            if (reservationMapper.recordCheckOutIfCompleted(reservationId, now) == 1)
+                recordEvent(reservationId, "CHECKED_OUT", userId, now, "QR_CHECK_OUT:" + scannedResourceId);
             return;
         }
-        if (!STATUS_CHECKED_IN.equals(reservation.getStatus())) {
+        if (!STATUS_CHECKED_IN.equals(reservation.getStatus()))
             throw new BusinessException(409, "INVALID_STATE", checkOutBlockedMessage(reservation.getStatus()));
-        }
-
-        LocalDateTime now = now();
-        if (reservationMapper.checkOutIfCheckedIn(reservationId, now) != 1) {
+        if (reservationMapper.checkOutIfCheckedIn(reservationId, now) != 1)
             throw new BusinessException(409, "INVALID_STATE", "预约状态已变化，请刷新后重试");
-        }
-        recordEvent(reservationId, "COMPLETED", userId, now, "CHECK_OUT");
+        recordEvent(reservationId, "COMPLETED", userId, now, "QR_CHECK_OUT:" + scannedResourceId);
+    }
+
+    private void requirePlace(LockedReservation locked, long scannedResourceId) {
+        if (scannedResourceId != locked.resource().getId())
+            throw new BusinessException(409, "WRONG_PLACE", "扫描地点与预约地点不一致");
     }
 
     private LockedReservation lock(long userId, long reservationId) {
@@ -135,7 +151,7 @@ public class SportsReservationService {
             throw new BusinessException(404, "RESOURCE_NOT_FOUND", "资源不存在");
         }
         Reservation reservation = reservationMapper.findByIdForUpdate(reservationId);
-        if (reservation == null) {
+        if (reservation == null || !Objects.equals(reservation.getUserId(), userId) || !Objects.equals(reservation.getResourceId(), resource.getId())) {
             throw new BusinessException(404, "RESERVATION_NOT_FOUND", "预约不存在或无权操作");
         }
         return new LockedReservation(reservation, resource);
@@ -154,7 +170,7 @@ public class SportsReservationService {
     }
 
     private LocalDateTime now() {
-        return LocalDateTime.now(clock);
+        return org.campus.campussharebackend.common.TimeFormats.now(clock);
     }
 
     private String cancelBlockedMessage(String status) {

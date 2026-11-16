@@ -17,3 +17,6 @@ campusshare:
     enabled: false
   legacy-checkin:
     enabled: false
+
+  venue-lifecycle:
+    enabled: false

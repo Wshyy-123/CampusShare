@@ -22,7 +22,7 @@ import static org.campus.campussharebackend.service.SportsBookingRules.isNoShow;
 import static org.campus.campussharebackend.service.SportsBookingRules.isSportsResource;
 
 /**
- * 体育预约超时未到处理（XIA-9 后台逻辑，接入主工程时按资源类型与状态条件修正）。
+ * 教室/体育未到与到期处理；保留同学的服务类名，座位/讨论室不套用本服务。
  *
  * <p>每条候选单独一个事务：先锁 resource、再锁 reservation，锁内重读状态与期限；
  * 取消、写事件、记违规同事务提交，任一步失败整条回滚，下一轮可重试。</p>
@@ -54,6 +54,20 @@ public class SportsNoShowService {
         this.sportsProperties = sportsProperties;
     }
 
+    @Transactional
+    public boolean complete(long reservationId) {
+        var hint = reservationMapper.findById(reservationId);
+        if (hint == null) return false;
+        var resource = resourceMapper.lockById(hint.getResourceId());
+        if (resource == null || (!isSportsResource(resource.getResourceType()) && !"CLASSROOM".equals(resource.getResourceType()))) return false;
+        var reservation = reservationMapper.findByIdForUpdate(reservationId);
+        var now = org.campus.campussharebackend.common.TimeFormats.now(clock);
+        if (reservation == null || !"CHECKED_IN".equals(reservation.getStatus()) || now.isBefore(reservation.getEndAt())) return false;
+        if (reservationMapper.completeAtEnd(reservationId, now) != 1) return false;
+        reservationRepository.insertEvent(reservationId, "COMPLETED", null, now, java.util.UUID.randomUUID().toString(), "AUTO_END");
+        return true;
+    }
+
     /**
      * @return 本次是否真的处理了该预约（用于调度日志）
      */
@@ -68,14 +82,14 @@ public class SportsNoShowService {
             return false;
         }
         Reservation reservation = reservationMapper.findByIdForUpdate(reservationId);
-        if (reservation == null || !STATUS_RESERVED.equals(reservation.getStatus())) {
+        if (reservation == null || reservation.getCheckInAt() != null || !STATUS_RESERVED.equals(reservation.getStatus())) {
             return false;
         }
-        if (!isSportsResource(resource.getResourceType())) {
+        if (!isSportsResource(resource.getResourceType()) && !"CLASSROOM".equals(resource.getResourceType())) {
             return false;
         }
 
-        LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime now = org.campus.campussharebackend.common.TimeFormats.now(clock);
         if (!isNoShow(reservation, now, sportsProperties.getCheckInGraceMinutes())) {
             return false;
         }
@@ -86,9 +100,9 @@ public class SportsNoShowService {
 
         reservationRepository.insertEvent(reservationId, "NO_SHOW", null, now,
                 "system-sports-no-show", "NO_SHOW");
-        violationRecordMapper.insertViolationIfAbsent(
+        if (isSportsResource(resource.getResourceType())) violationRecordMapper.insertViolationIfAbsent(
                 reservation.getUserId(), reservationId, VIOLATION_SPORTS_NO_SHOW, now);
-        LOG.info("体育预约 {} 超时未签到，已自动取消并记录违规", reservationId);
+        LOG.info("地点预约 {} 超时未签到，已按资源规则取消", reservationId);
         return true;
     }
 }

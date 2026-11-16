@@ -26,6 +26,19 @@ public interface ReservationMapper {
     @Update("UPDATE reservation SET status = 'CANCELLED', cancel_reason = #{reason}, updated_at = NOW() WHERE id = #{id}")
     void cancelReservationWithReason(@Param("id") Long id, @Param("reason") String reason);
 
+    @Update("UPDATE reservation SET check_out_at=#{occurredAt}, updated_at=#{occurredAt} WHERE id=#{id} AND status='COMPLETED' AND check_out_at IS NULL AND check_in_at IS NOT NULL")
+    int recordCheckOutIfCompleted(@Param("id") Long id, @Param("occurredAt") LocalDateTime occurredAt);
+    @Update("UPDATE reservation SET status='COMPLETED', updated_at=#{now} WHERE id=#{id} AND status='CHECKED_IN' AND end_at <= #{now}")
+    int completeAtEnd(@Param("id") Long id, @Param("now") LocalDateTime now);
+
+    @Select("SELECT r.* FROM reservation r JOIN resource s ON s.id=r.resource_id WHERE r.id>#{afterId} AND r.status='RESERVED' AND r.check_in_at IS NULL AND r.start_at <= #{deadline} AND s.resource_type IN ('CLASSROOM','BADMINTON','TABLE_TENNIS','TENNIS') ORDER BY r.id LIMIT #{limit}")
+    List<Reservation> findVenueNoShows(@Param("deadline") LocalDateTime deadline, @Param("afterId") long afterId, @Param("limit") int limit);
+    @Select("SELECT r.* FROM reservation r JOIN resource s ON s.id=r.resource_id WHERE r.id>#{afterId} AND r.status='CHECKED_IN' AND r.end_at <= #{now} AND s.resource_type IN ('CLASSROOM','BADMINTON','TABLE_TENNIS','TENNIS') ORDER BY r.id LIMIT #{limit}")
+    List<Reservation> findVenueEnds(@Param("now") LocalDateTime now, @Param("afterId") long afterId, @Param("limit") int limit);
+
+    @Select("SELECT id FROM reservation WHERE user_id=#{userId} AND resource_id=#{resourceId} AND ((status IN ('RESERVED','CHECKED_IN') AND start_at <= #{now} AND end_at>#{now}) OR (status IN ('CHECKED_IN','COMPLETED') AND check_in_at IS NOT NULL AND check_out_at IS NULL AND end_at <= #{now})) ORDER BY CASE WHEN end_at>#{now} THEN 0 ELSE 1 END, start_at DESC, id DESC LIMIT 1")
+    Long findForPlace(@Param("userId") long userId, @Param("resourceId") long resourceId, @Param("now") LocalDateTime now);
+
     // ================= 体育取消 / 签到 / 签退（XIA-7 / XIA-8） =================
 
     /**

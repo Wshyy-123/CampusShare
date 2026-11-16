@@ -1,364 +1,82 @@
 openapi: 3.0.3
 info:
-  title: CampusShare XIA-7 / XIA-8 体育预约取消与扫码签到签退
-  version: 0.1.0
+  title: CampusShare 地点签到、体育取消与签退
+  version: 1.0.0
   description: |
-    覆盖 XIA-7（体育预约取消）、XIA-8（体育扫码签到、签退），以及二者共用的预约详情查询。
-
-    ## 适用范围
-    - 资源类型仅 `BADMINTON`、`TABLE_TENNIS`、`TENNIS`。其他类型调用三个写接口返回 409 `INVALID_STATE`。
-    - 身份由服务端会话识别（XIA-1 登录），请求体不传 userId；写请求需登录态与 CSRF 校验。
-    - 时间统一按 Asia/Shanghai 解释，对外使用带 `+08:00` 偏移的 ISO 8601；所有期限判断以服务端时钟为准。
-    - 每次响应带 `requestId`，用于定位一次调用。
-
-    ## 规则口径（本契约的正式约定）
-    | 操作 | 受理条件 | 成功结果 | 重复调用 |
-    |---|---|---|---|
-    | 取消 | 本人、体育、status=RESERVED、当前时间早于 startTime | CANCELLED / USER_CANCEL，写一条 CANCELLED 事件 | 已是 USER_CANCEL 时幂等返回 200，不重复写事件 |
-    | 签到 | 本人、体育、status=RESERVED、`startTime - checkInEarlyMinutes ≤ now < startTime + checkInGraceMinutes` | CHECKED_IN 并写 checkInAt，写一条 CHECKED_IN 事件 | 已 CHECKED_IN 时幂等返回 200 |
-    | 签退 | 本人、体育、status=CHECKED_IN | COMPLETED 并写 checkOutAt，写一条 COMPLETED 事件 | 已 COMPLETED 时幂等返回 200 |
-
-    默认窗口：`checkInEarlyMinutes=0`、`checkInGraceMinutes=15`，由 `app.sports.*` 配置。
-
-    ## 待 PO 确认的口径（已按默认值实现，改动只需调配置或一处规则类）
-    1. 提前签到是否允许、提前多久：默认不允许（从 startTime 起）。
-    2. 迟到签到的临界：默认 `now < startTime + 15 分钟`；即使后台任务尚未扫描到，也按规则拒绝。
-    3. 已签到但尚未到 startTime 时能否取消：当前一律不允许（CHECKED_IN 即视为已开始使用）。
-    4. 提前签退是否允许：允许，按实际时间写 checkOutAt 并转 COMPLETED。
-    5. 漏签退：本故事不做自动处理，见验证记录中的已知限制。
-
-    ## 与既有文档的差异
-    - 《后端数据库接口与协作约定》接口清单已列出 cancel / check-in / check-out，本文件补充字段、错误与边界。
-    - 《开发环境与协作约定》要求"扫码先识别资源或签到入口"，与"按 reservationId 调用"存在差异；
-      当前实现按 reservationId 调用，二维码内容由前端决定，待团队统一后如需按 resourceId 解析，再新增接口。
+    Session身份与CSRF沿用主工程。GET只读，POST写入。扫码绑定具体resourceId并记录QR来源。
+    教室/体育签到窗口[start, min(start+15分钟,end))；重复不切换为签退。
+    体育仅在end后签退；自动完成不伪造checkOutAt，后补签退不再次完成。
+    教室/体育15分钟未到处理与到期自动完成由后台执行，教室不新增违规。
 servers:
-  - url: /
+  - url: /api/v1
 security:
   - sessionCookie: []
 paths:
-  /api/v1/reservations/{reservationId}:
+  /places/{resourceId}:
     get:
-      operationId: getReservation
-      summary: 查询本人预约详情（XIA-8 用于查询签到/签退结果）
-      description: 仅本人可见；他人的预约按 404 处理，不泄露存在性。
+      summary: 只读地点信息及当前账户可签到或待签退的预约
       parameters:
-        - $ref: '#/components/parameters/ReservationId'
+        - {name: resourceId, in: path, required: true, schema: {type: string, pattern: '^[1-9][0-9]*$'}}
+        - {name: reservationId, in: query, required: false, schema: {type: string}}
       responses:
-        '200':
-          description: 查询成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/ReservationDetail'
-              example:
-                code: OK
-                message: 查询成功
-                data:
-                  reservationId: '5'
-                  resourceId: '2'
-                  resourceType: BADMINTON
-                  status: CHECKED_IN
-                  cancelReason: null
-                  startTime: '2026-11-03T10:00:00+08:00'
-                  endTime: '2026-11-03T11:00:00+08:00'
-                  checkInAt: '2026-11-03T10:02:11+08:00'
-                  checkOutAt: null
-                requestId: example-trace-001
-        '400':
-          $ref: '#/components/responses/InvalidArgument'
-        '401':
-          $ref: '#/components/responses/AuthRequired'
-        '404':
-          $ref: '#/components/responses/ReservationNotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
-  /api/v1/reservations/{reservationId}/cancel:
+        '200': {description: 统一响应data含place、本人reservation或null、serverTime；不登记签到}
+        '401': {description: 未登录}
+        '404': {description: 资源或本人预约不存在}
+        '409': {description: WRONG_PLACE或不支持扫码的资源}
+  /reservations/{reservationId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/ReservationId'
     post:
-      operationId: cancelSportsReservation
-      summary: 体育预约取消（XIA-7）
-      description: |
-        使用前取消：仅在 startTime 之前、且状态为 RESERVED 时受理，成功后占用立即解除。
-        取消不记违规。已签到（CHECKED_IN）、已完成（COMPLETED）、因超时被取消（NO_SHOW）均返回 409。
-        重复提交同一取消：已是 USER_CANCEL 时返回 200 且不重复写事件（AC3）。
-      parameters:
-        - $ref: '#/components/parameters/ReservationId'
+      summary: 本人体育预约使用前取消，已USER_CANCEL则幂等
       responses:
-        '200':
-          description: 取消成功；重复提交时返回同一结果
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/ReservationDetail'
-              example:
-                code: OK
-                message: 预约已取消
-                data:
-                  reservationId: '4'
-                  resourceId: '2'
-                  resourceType: BADMINTON
-                  status: CANCELLED
-                  cancelReason: USER_CANCEL
-                  startTime: '2026-11-04T10:00:00+08:00'
-                  endTime: '2026-11-04T11:00:00+08:00'
-                  checkInAt: null
-                  checkOutAt: null
-                requestId: example-trace-002
-        '400':
-          $ref: '#/components/responses/InvalidArgument'
-        '401':
-          $ref: '#/components/responses/AuthRequired'
-        '404':
-          $ref: '#/components/responses/ReservationNotFound'
-        '409':
-          description: INVALID_STATE，状态或时间不允许取消
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              examples:
-                started:
-                  value:
-                    code: INVALID_STATE
-                    message: 预约已到开始时间，不能按使用前规则取消
-                    data: null
-                    requestId: example-trace-003
-                checkedIn:
-                  value:
-                    code: INVALID_STATE
-                    message: 预约已签到，不能取消
-                    data: null
-                    requestId: example-trace-004
-        '500':
-          $ref: '#/components/responses/InternalError'
-  /api/v1/reservations/{reservationId}/check-in:
+        '200': {description: 返回最新本人ReservationVO}
+        '401': {description: 未登录}
+        '403': {description: 缺少有效CSRF}
+        '404': {description: 不存在或不属于本人}
+        '409': {description: 非体育、已开始或状态不允许}
+  /reservations/{reservationId}/check-in:
+    parameters:
+      - $ref: '#/components/parameters/ReservationId'
     post:
-      operationId: checkInSportsReservation
-      summary: 体育扫码签到（XIA-8）
-      description: |
-        到馆扫码签到，记录 checkInAt。仅本人、体育、状态 RESERVED 且在可签到窗口内受理。
-        已因超时被取消的预约返回 409，不恢复原占用（AC3）。
-        重复签到返回 200 且不重复写事件。
-      parameters:
-        - $ref: '#/components/parameters/ReservationId'
+      summary: 扫描具体教室或体育地点码后确认本人预约
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PlaceScan'}
       responses:
-        '200':
-          description: 签到成功；重复提交时返回同一结果
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/ReservationDetail'
-              example:
-                code: OK
-                message: 签到成功
-                data:
-                  reservationId: '5'
-                  resourceId: '2'
-                  resourceType: BADMINTON
-                  status: CHECKED_IN
-                  cancelReason: null
-                  startTime: '2026-11-03T10:00:00+08:00'
-                  endTime: '2026-11-03T11:00:00+08:00'
-                  checkInAt: '2026-11-03T10:02:11+08:00'
-                  checkOutAt: null
-                requestId: example-trace-005
-        '400':
-          $ref: '#/components/responses/InvalidArgument'
-        '401':
-          $ref: '#/components/responses/AuthRequired'
-        '404':
-          $ref: '#/components/responses/ReservationNotFound'
-        '409':
-          description: INVALID_STATE，超出签到窗口或状态不允许签到
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              examples:
-                tooEarly:
-                  value:
-                    code: INVALID_STATE
-                    message: 未到可签到时间
-                    data: null
-                    requestId: example-trace-006
-                tooLate:
-                  value:
-                    code: INVALID_STATE
-                    message: 已超过签到时间，预约已不可签到
-                    data: null
-                    requestId: example-trace-007
-                cancelled:
-                  value:
-                    code: INVALID_STATE
-                    message: 预约已取消，不能签到
-                    data: null
-                    requestId: example-trace-008
-        '500':
-          $ref: '#/components/responses/InternalError'
-  /api/v1/reservations/{reservationId}/check-out:
+        '200': {description: 返回CHECKED_IN及既有或首次签到时间，不重复记事件}
+        '400': {description: 缺少或非法地点/来源}
+        '401': {description: 未登录}
+        '403': {description: 缺少有效CSRF}
+        '404': {description: 不存在或不属于本人}
+        '409': {description: WRONG_PLACE、RESOURCE_UNAVAILABLE或时间/状态不允许}
+  /reservations/{reservationId}/check-out:
+    parameters:
+      - $ref: '#/components/parameters/ReservationId'
     post:
-      operationId: checkOutSportsReservation
-      summary: 体育扫码签退（XIA-8）
-      description: |
-        使用结束扫码签退，记录 checkOutAt 并转 COMPLETED，占用解除。
-        未签到、已取消、已完成均返回 409（已完成重复签退返回 200）。
-      parameters:
-        - $ref: '#/components/parameters/ReservationId'
+      summary: 体育结束后记录实际签退，已自动完成时只补签退记录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PlaceScan'}
       responses:
-        '200':
-          description: 签退成功；重复提交时返回同一结果
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/ReservationDetail'
-              example:
-                code: OK
-                message: 签退成功
-                data:
-                  reservationId: '5'
-                  resourceId: '2'
-                  resourceType: BADMINTON
-                  status: COMPLETED
-                  cancelReason: null
-                  startTime: '2026-11-03T10:00:00+08:00'
-                  endTime: '2026-11-03T11:00:00+08:00'
-                  checkInAt: '2026-11-03T10:02:11+08:00'
-                  checkOutAt: '2026-11-03T11:01:05+08:00'
-                requestId: example-trace-009
-        '400':
-          $ref: '#/components/responses/InvalidArgument'
-        '401':
-          $ref: '#/components/responses/AuthRequired'
-        '404':
-          $ref: '#/components/responses/ReservationNotFound'
-        '409':
-          $ref: '#/components/responses/InvalidState'
-        '500':
-          $ref: '#/components/responses/InternalError'
+        '200': {description: 返回COMPLETED及checkOutAt，重复调用不重复完成/记录}
+        '400': {description: 缺少或非法地点/来源}
+        '401': {description: 未登录}
+        '403': {description: 缺少有效CSRF}
+        '404': {description: 不存在或不属于本人}
+        '409': {description: 错误地点、非体育、未签到、未结束或状态不允许}
 components:
   securitySchemes:
-    sessionCookie:
-      type: apiKey
-      in: cookie
-      name: JSESSIONID
-      description: 服务端会话 Cookie（XIA-1 登录后由 /api/v1/auth/login 建立）。
+    sessionCookie: {type: apiKey, in: cookie, name: JSESSIONID}
   parameters:
-    ReservationId:
-      name: reservationId
-      in: path
-      required: true
-      schema:
-        type: string
-        pattern: '^[1-9][0-9]*$'
-      description: 预约ID，JSON 中以字符串传递
-  responses:
-    InvalidArgument:
-      description: 400 INVALID_ARGUMENT，路径或参数不合法
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    AuthRequired:
-      description: 401 AUTH_REQUIRED，未登录或会话失效
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    ReservationNotFound:
-      description: 404 RESERVATION_NOT_FOUND，预约不存在或不属于当前用户
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    InvalidState:
-      description: 409 INVALID_STATE，预约状态或时间不允许该操作
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    InternalError:
-      description: 500 INTERNAL_ERROR，服务端异常，保留 requestId 便于定位
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+    ReservationId: {name: reservationId, in: path, required: true, schema: {type: string, pattern: '^[1-9][0-9]*$'}}
   schemas:
-    ApiResponse:
+    PlaceScan:
       type: object
-      required: [code, message, data, requestId]
+      required: [resourceId, source]
       properties:
-        code:
-          type: string
-          description: 成功为 OK，失败为稳定业务码
-        message:
-          type: string
-        data:
-          nullable: true
-        requestId:
-          type: string
-    Error:
-      type: object
-      required: [code, message, data, requestId]
-      properties:
-        code:
-          type: string
-          enum: [INVALID_ARGUMENT, AUTH_REQUIRED, FORBIDDEN, RESERVATION_NOT_FOUND, RESOURCE_NOT_FOUND, INVALID_STATE, INTERNAL_ERROR]
-        message:
-          type: string
-        data:
-          nullable: true
-        requestId:
-          type: string
-    ReservationDetail:
-      type: object
-      description: 预约详情；时间为带 +08:00 偏移的 ISO 8601，未发生的时间为 null
-      required: [reservationId, resourceId, status, startTime, endTime]
-      properties:
-        reservationId:
-          type: string
-        resourceId:
-          type: string
-        resourceType:
-          type: string
-          nullable: true
-          description: LIBRARY_SEAT / BADMINTON / TABLE_TENNIS / TENNIS 等
-        status:
-          type: string
-          enum: [RESERVED, CHECKED_IN, COMPLETED, CANCELLED]
-        cancelReason:
-          type: string
-          nullable: true
-          description: USER_CANCEL / NO_SHOW / RESOURCE_DISABLED
-        startTime:
-          type: string
-          format: date-time
-        endTime:
-          type: string
-          format: date-time
-        checkInAt:
-          type: string
-          format: date-time
-          nullable: true
-        checkOutAt:
-          type: string
-          format: date-time
-          nullable: true
+        resourceId: {type: string, pattern: '^[1-9][0-9]*$'}
+        source: {type: string, enum: [QR]}
