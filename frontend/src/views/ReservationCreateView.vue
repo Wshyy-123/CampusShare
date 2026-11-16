@@ -258,7 +258,7 @@ onMounted(loadAvailability);
           <div>
             <h2>选择日期与时段</h2>
             <p class="small">
-              所有时间按 Asia/Shanghai 解释；冲突和开放状态以服务端检查为准。
+              请选择开放时间内的时段，并避开课程与已有预约。
             </p>
           </div>
 
@@ -294,7 +294,7 @@ onMounted(loadAvailability);
             {{ submitError }}
           </div>
           <p class="small">
-            提交按钮的禁用只改善体验；服务端会在同一事务内重新检查开放、教学占用和预约冲突。
+            提交前请核对日期、地点与使用规则，预约成功后可在“我的预约”查看。
           </p>
         </form>
 

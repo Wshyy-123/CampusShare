@@ -38,16 +38,22 @@ async function submit() {
 </script>
 <template>
   <section class="login-layout">
-    <div class="page-intro">
-      <span class="eyebrow">WELCOME TO YOUR CAMPUS</span>
-      <h1>登录，找到你的<span class="gradient-text">下一站。</span></h1>
-      <p>用自己的账户预约校园空间，查看使用安排。</p>
-      <div class="rule-box">
-        <AppIcon name="shield" />
-        <div>
-          <strong>会话身份 · 本人预约</strong>
-          <p>预约归属以服务端登录账户为准，页面不传入用户编号。</p>
-        </div>
+    <div class="page-intro login-intro">
+      <span class="eyebrow">YOUR CAMPUS, ON YOUR TERMS</span>
+      <h1>你的校园，<br /><span>有处可去。</span></h1>
+      <p>登录校享，安排下一次自习、讨论与运动。</p>
+      <div class="login-scenes">
+        <img
+          src="/images/spaces/library.webp"
+          alt="图书馆场景示意"
+          width="1000"
+          height="640"
+        /><span>FOCUS. MEET. MOVE.</span>
+      </div>
+      <div class="login-features">
+        <span><AppIcon name="book" :size="16" /> 图书馆</span
+        ><span><AppIcon name="classroom" :size="16" /> 教室</span
+        ><span><AppIcon name="sport" :size="16" /> 体育场所</span>
       </div>
     </div>
     <div v-if="campus.isDemo" class="panel login-panel">
@@ -60,8 +66,9 @@ async function submit() {
       >
     </div>
     <form v-else class="panel login-panel" @submit.prevent="submit">
+      <span class="eyebrow">WELCOME BACK</span>
       <h2>登录校享</h2>
-      <p class="muted">连接主后端，查询与保存本人预约。</p>
+      <p class="muted">欢迎回来，继续你的校园计划。</p>
       <label class="form-field"
         >账号<input
           v-model="form.account"
@@ -87,7 +94,7 @@ async function submit() {
         {{ submitting ? "登录中…" : "登录" }}<AppIcon name="arrow" :size="17" />
       </button>
       <div class="demo-accounts">
-        <p class="muted">已导入演示SQL时，可填入以下虚构账号：</p>
+        <p class="muted">课程演示账号 · 点击填入</p>
         <div>
           <button
             v-for="account in accounts"
@@ -103,7 +110,7 @@ async function submit() {
             {{ account.label }}
           </button>
         </div>
-        <p class="muted">仅填入表单，仍需后端核验账号与密码。</p>
+        <p class="muted">演示账号密码：Campus@123；填写后点击登录。</p>
       </div>
     </form>
   </section>

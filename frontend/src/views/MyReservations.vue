@@ -1,11 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from "vue";
 import { RouterLink } from "vue-router";
-import {
-  formatHour,
-  formatDateTime,
-  rules,
-} from "../utils/presentation";
+import { formatHour, formatDateTime, rules } from "../utils/presentation";
 import { useCampus } from "../composables/useCampus";
 import AppIcon from "../components/common/AppIcon.vue";
 import SpaceScene from "../components/visual/SpaceScene.vue";
@@ -54,13 +50,13 @@ onMounted(refresh);
 </script>
 <template>
   <section class="page-intro">
-    <span class="eyebrow">YOUR PLANS, IN ONE PLACE</span>
-    <h1>把时间留给<span class="gradient-text">期待的事。</span></h1>
-    <p>查看你的预约安排，按时到场，安心使用。</p>
+    <span class="eyebrow">MY SCHEDULE / 校园日程</span>
+    <h1>我的预约<span class="heading-note">安排好每一段校园时间。</span></h1>
+    <p>查看使用安排、确认到场，或在使用前调整预约。</p>
   </section>
   <div class="section-heading">
     <h2>
-      我的预约
+      预约记录
       <span class="count-pill"
         >{{ isDemo ? records.length : state.bookingTotal }} 条记录</span
       >
@@ -99,14 +95,24 @@ onMounted(refresh);
   <div v-else class="booking-list">
     <article v-for="record in records" :key="record.id" class="booking-card">
       <div v-if="record.space" class="booking-scene">
-        <SpaceScene :kind="record.space.kind" :variant="record.space.variant" />
+        <SpaceScene
+          :kind="record.space.kind"
+          :variant="record.space.variant"
+          :resource-type="record.space.resourceType"
+        />
       </div>
       <div class="booking-content">
         <div class="booking-top">
           <span class="eyebrow">{{
             isDemo ? "本地演示预约" : `本人预约 #${record.id}`
           }}</span
-          ><StatusBadge :status="record.state" :cancel-reason="record.cancelReason ?? null" :resource-type="record.space?.resourceType ?? record.space?.kind ?? ''" />
+          ><StatusBadge
+            :status="record.state"
+            :cancel-reason="record.cancelReason ?? null"
+            :resource-type="
+              record.space?.resourceType ?? record.space?.kind ?? ''
+            "
+          />
         </div>
         <h3>{{ record.space?.name ?? `资源 #${record.resourceId}` }}</h3>
         <p v-if="record.space" class="resource-location">
@@ -124,13 +130,22 @@ onMounted(refresh);
             ></template
           >
         </p>
-        <div v-if="record.space && (record.state === 'RESERVED' || record.state === 'CHECKED_IN')" class="booking-rule">
+        <div
+          v-if="
+            record.space &&
+            (record.state === 'RESERVED' || record.state === 'CHECKED_IN')
+          "
+          class="booking-rule"
+        >
           <AppIcon name="info" :size="15" /><span>{{
             rules[record.space.kind][record.state === "CHECKED_IN" ? 1 : 0]
           }}</span>
         </div>
-        <p v-if="record.arrivalDeadline && record.state === 'RESERVED'" class="muted">
-          服务端到馆期限：{{ formatDateTime(record.arrivalDeadline) }}
+        <p
+          v-if="record.arrivalDeadline && record.state === 'RESERVED'"
+          class="muted"
+        >
+          最晚到场：{{ formatDateTime(record.arrivalDeadline) }}
         </p>
         <RouterLink
           v-if="!isDemo"
@@ -176,8 +191,10 @@ onMounted(refresh);
       {{
         isDemo
           ? "预置记录用于展示不同状态；刷新页面后重置。"
-          : "此处仅展示后端返回的本人记录；状态以服务端处理结果为准。"
-      }}<span v-if="!isDemo"> 座位未到超时由后台自动处理，关闭页面仍生效；可刷新查看最新结果。</span>
+          : "这里只展示你的预约，点击详情查看签到与取消操作。"
+      }}<span v-if="!isDemo">
+        座位未到超时由后台自动处理，关闭页面仍生效；可刷新查看最新结果。</span
+      >
     </p>
   </div>
 </template>

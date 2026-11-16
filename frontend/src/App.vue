@@ -46,7 +46,7 @@ async function signOut() {
         ><span class="brand-mark"><span /><span /><span /><span /></span
         ><span>校享<span class="brand-en">CAMPUSSHARE</span></span></RouterLink
       >
-      <div class="workspace-label">我的校园 <span>WORKSPACE</span></div>
+      <div class="workspace-label">校园工作台 <span>WORKSPACE</span></div>
       <nav class="main-nav" aria-label="主导航">
         <RouterLink v-for="item in nav" :key="item.to" :to="item.to"
           ><AppIcon :name="item.icon" /><span>{{ item.label }}</span
@@ -56,15 +56,16 @@ async function signOut() {
         >
       </nav>
       <div class="sidebar-guide">
-        <span class="guide-symbol"><AppIcon name="book" :size="25" /></span>
-        <h3>让每一处空间<br />都被好好使用。</h3>
-        <p>学习、交流、运动，<br />在这里找到你的下一站。</p>
-        <RouterLink to="/resources"
-          >探索校园空间 <AppIcon name="arrow" :size="16"
+        <span class="guide-symbol"><AppIcon name="calendar" :size="22" /></span>
+        <span class="guide-label">安排好下一段时间</span>
+        <h3>有计划地出发，<br />有地方可去。</h3>
+        <p>预约后记得按时到场，<br />让好空间被好好使用。</p>
+        <RouterLink to="/bookings"
+          >查看我的预约 <AppIcon name="arrow" :size="16"
         /></RouterLink>
       </div>
       <button class="scope-link" @click="scopeDialog?.showModal()">
-        <AppIcon name="info" :size="17" /> 演示说明
+        <AppIcon name="info" :size="17" /> 使用说明
         <AppIcon name="chevron" :size="15" />
       </button>
       <div class="sidebar-footer">
@@ -75,9 +76,18 @@ async function signOut() {
     <div class="main-shell">
       <header class="topbar">
         <div class="breadcrumb">
-          校园工作台 <AppIcon name="chevron" :size="13" /><span>{{
+          校园空间 <AppIcon name="chevron" :size="13" /><span>{{
             route.meta.title
           }}</span>
+        </div>
+        <div
+          v-if="!isDemo && authState.user"
+          class="sync-status"
+          :class="{ 'sync-error': state.error }"
+        >
+          <span />{{
+            state.error ? "同步异常" : state.ready ? "已同步" : "正在同步"
+          }}
         </div>
         <div class="profile">
           <span class="profile-name"
@@ -89,7 +99,7 @@ async function signOut() {
                 ? "学生视角"
                 : authState.user
                   ? roleLabel(authState.user.role)
-                  : "接口模式"
+                  : "欢迎使用"
             }}</small></span
           ><span class="avatar">{{
             isDemo ? "访" : (authState.user?.displayName?.slice(0, 1) ?? "客")
@@ -109,7 +119,7 @@ async function signOut() {
           >
         </div>
       </header>
-      <div class="demo-banner">
+      <div v-if="isDemo" class="demo-banner">
         <span class="demo-dot" /><span
           ><strong>{{ isDemo ? "前端交互演示" : "后端接口模式" }}</strong
           ><span class="banner-extra">{{
@@ -128,10 +138,26 @@ async function signOut() {
         <RouterView :key="route.path" />
       </main>
       <footer class="page-footer">
-        <span>CampusShare / 共享校园的每一种可能</span
-        ><span>{{
-          isDemo ? "前端演示数据 · 刷新后重置" : "接口模式 · 不回退演示数据"
-        }}</span>
+        <span
+          >校享 CampusShare
+          <span class="footer-divider">/</span> 让校园空间被好好使用</span
+        >
+        <span class="photo-credit"
+          >场景图片仅作示意 ·
+          <a
+            href="https://unsplash.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Unsplash</a
+          >
+          /
+          <a
+            href="https://www.pexels.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Pexels</a
+          ></span
+        >
       </footer>
     </div>
     <div v-if="state.notice" class="toast" role="status">
@@ -149,8 +175,8 @@ async function signOut() {
     >
       <div class="modal-heading">
         <div>
-          <span class="eyebrow">ABOUT THIS PREVIEW</span>
-          <h2 id="scope-title">这次演示包含什么</h2>
+          <span class="eyebrow">CAMPUS GUIDE</span>
+          <h2 id="scope-title">预约与使用说明</h2>
         </div>
         <button
           class="icon-button"
@@ -161,28 +187,41 @@ async function signOut() {
         </button>
       </div>
       <p class="muted">
-        本地演示模式使用内存样例；后端接口模式连接主后端，登录及预约会读写数据库。学校教务、场馆与账号种子数据用于课程模拟，不代表学校实际安排。
+        统一预约校园里的座位、教室与运动场地。页面中的场地与账号为课程模拟数据。
       </p>
       <div class="scope-item">
-        <AppIcon name="check" />
+        <AppIcon name="book" />
         <div>
-          <strong>可以操作</strong>
+          <strong>图书馆座位</strong>
           <p>
-            分类与搜索、日期切换、资源详情、时段选择、添加演示预约、查看我的预约、维护模拟占用。
+            预约成功起30分钟内模拟刷卡入场；刷卡离场后立即结束使用并释放座位，不支持主动取消。
           </p>
         </div>
       </div>
       <div class="scope-item">
-        <AppIcon name="clock" />
+        <AppIcon name="classroom" />
         <div>
-          <strong>尚未联调</strong>
+          <strong>教室与体育场地</strong>
           <p>
-            扫码签到、刷卡到离场、占用维护写接口及后台自动释放尚未接入本界面。接口模式已接入主后端的登录、资源可用性与本人预约；真实学校教务和校园卡仍为模拟接入范围。
+            使用前可以取消。开始后15分钟内，使用预约账户扫描对应地点码签到；已签到的预约到期自动完成。
+          </p>
+        </div>
+      </div>
+      <div class="scope-item">
+        <AppIcon name="calendar" />
+        <div>
+          <strong>讨论室</strong>
+          <p>
+            按整间预约，最晚在使用日期前一自然日提交。教学、外部占用与停用安排不能预约。
           </p>
         </div>
       </div>
       <p class="inline-note">
-        演示模式数据只在当前页面内存；接口模式的预约写入后端数据库。真实管理页按服务端身份显示，当前仅可查看占用，不能维护。
+        {{
+          isDemo
+            ? "当前是演示模式，操作仅保存在当前页面；真实签到和管理操作需要连接后端。"
+            : "当前已连接项目后端。手机扫码需要手机可访问的网站地址；图书馆刷卡使用模拟入口。"
+        }}
       </p>
       <button class="button primary full-width" @click="scopeDialog?.close()">
         开始浏览

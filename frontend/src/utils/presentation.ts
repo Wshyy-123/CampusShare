@@ -58,3 +58,18 @@ export const rules = {
     "开始后 15 分钟未签到取消释放并记录违规；预约结束自动完成。",
   ],
 };
+
+export function resourceTypeLabel(type: string): string {
+  return (
+    (
+      {
+        LIBRARY_SEAT: "图书馆座位",
+        CLASSROOM: "教室",
+        BADMINTON: "羽毛球场",
+        TABLE_TENNIS: "乒乓球台",
+        TENNIS: "网球场",
+        DISCUSSION_ROOM: "讨论室",
+      } as Record<string, string>
+    )[type] ?? type
+  );
+}

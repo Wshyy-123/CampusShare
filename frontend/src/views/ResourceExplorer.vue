@@ -10,6 +10,7 @@ import {
   formatHour,
   rules,
   dateAfter,
+  formatDateTime,
 } from "../utils/presentation";
 import { useCampus } from "../composables/useCampus";
 import type { Space, SpaceKind } from "../types/campus";
@@ -33,6 +34,32 @@ const categories: { id: SpaceKind | "ALL"; label: string; icon: string }[] = [
   { id: "CLASSROOM", label: "教室", icon: "classroom" },
   { id: "SPORTS", label: "体育场所", icon: "sport" },
 ];
+const pendingBooking = computed(
+  () =>
+    state.bookings
+      .filter(
+        (b) =>
+          ["RESERVED", "CHECKED_IN"].includes(b.state) &&
+          (!b.endTime || Date.parse(b.endTime) > Date.now()),
+      )
+      .sort((a, b) => (a.startTime ?? "").localeCompare(b.startTime ?? ""))[0],
+);
+const pendingSpace = computed(() =>
+  spaces.value.find((s) => s.id === pendingBooking.value?.resourceId),
+);
+const overviewDate = computed(() => {
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(date.value) ||
+    !Number.isFinite(Date.parse(date.value))
+  )
+    return "请选择日期";
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+    timeZone: "Asia/Shanghai",
+  }).format(new Date(`${date.value}T12:00:00+08:00`));
+});
 const availableCount = computed(
   () =>
     spaces.value.filter((space) =>
@@ -74,6 +101,14 @@ watch([date, () => state.resources], async () => {
     state.resources.map((space) => loadAvailability(space.id, date.value)),
   );
 });
+function scrollToSpaces() {
+  grid.value?.scrollIntoView({
+    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "auto"
+      : "smooth",
+    block: "start",
+  });
+}
 async function openDetail(space: Space) {
   if (space.kind === "DISCUSSION_ROOM" && date.value <= localDate())
     date.value = dateAfter(1);
@@ -96,85 +131,89 @@ async function makeReservation() {
 }
 function freeLabel(space: Space) {
   if (space.disabled) return "维护中";
+  if (space.kind === "DISCUSSION_ROOM" && date.value <= localDate())
+    return "需提前一天预约";
   const free = slots(space.id, date.value).filter((s) => s.available).length;
-  return free ? `${free} 个可约时段` : "当日已约满";
+  return free ? `${free} 个可约时段` : "当日暂无可约时段";
 }
 </script>
 
 <template>
-  <section class="hero-panel">
-    <div class="hero-copy">
+  <section class="discovery-hero" aria-label="校园空间预约">
+    <div class="discovery-copy">
       <span class="eyebrow"
-        ><span class="tiny-line" /> YOUR CAMPUS, YOUR SPACE</span
+        ><span class="tiny-line" /> CAMPUS SPACES / 校园空间</span
       >
       <h1>
-        好时光，<br />从找到<span class="gradient-text">好空间</span>开始。
+        <span class="hero-title-main">发现校园空间</span
+        ><span class="hero-title-sub">按你的节奏，安排下一站。</span>
       </h1>
       <p>
-        一个安静的座位，一间灵感碰撞的教室，<br
+        安静自习、一起讨论，或是去运动。<br
           class="desktop-break"
-        />一场说走就走的运动。校园空间，尽在校享。
+        />给接下来的时间，找个合适的地方。
       </p>
-      <button
-        class="button hero-button"
-        @click="grid?.scrollIntoView({ behavior: 'smooth', block: 'start' })"
-      >
-        寻找我的空间 <AppIcon name="arrow" :size="18" />
-      </button>
+      <div class="hero-actions">
+        <button class="button primary" @click="scrollToSpaces()">
+          浏览可约空间 <AppIcon name="arrow" :size="17" /></button
+        ><RouterLink class="text-link" to="/bookings"
+          >我的预约 <AppIcon name="chevron" :size="14"
+        /></RouterLink>
+      </div>
     </div>
-    <div class="hero-art" aria-hidden="true">
-      <div class="orbit orbit-one" />
-      <div class="orbit orbit-two" />
-      <div class="orbit orbit-three" />
-      <div class="orbital-core">
-        <div class="core-icon"><AppIcon name="grid" :size="46" /></div>
-        <span>CAMPUSSHARE</span>
+    <aside class="reservation-preview" aria-label="预约提醒">
+      <div class="preview-heading">
+        <span>我的校园日程</span><AppIcon name="calendar" :size="20" />
       </div>
-      <div class="floating-space floating-library">
-        <AppIcon name="book" :size="20" /><span
-          >安静，自有一席之地<small>LIBRARY</small></span
-        >
-      </div>
-      <div class="floating-space floating-sport">
-        <AppIcon name="sport" :size="20" /><span
-          >热爱，随时上场<small>SPORTS</small></span
-        >
-      </div>
-      <span class="orbit-point point-one" /><span
-        class="orbit-point point-two"
-      /><span class="hero-coordinate">EXPLORE / CONNECT / SHARE</span>
-    </div>
-    <span class="hero-index">01 — EXPLORE THE CAMPUS</span>
+      <template v-if="pendingBooking">
+        <span class="preview-kicker">{{
+          pendingBooking.state === "CHECKED_IN" ? "正在使用" : "记得按时到场"
+        }}</span>
+        <h2>{{ pendingSpace?.name ?? "你有一项待办预约" }}</h2>
+        <p>
+          {{
+            pendingBooking.startTime
+              ? formatDateTime(pendingBooking.startTime)
+              : pendingBooking.date
+          }}<template v-if="pendingBooking.endTime">
+            至 {{ formatDateTime(pendingBooking.endTime).slice(-5) }}</template
+          >
+        </p>
+        <RouterLink
+          :to="isDemo ? '/bookings' : `/bookings/${pendingBooking.id}`"
+          class="preview-link"
+          >查看预约 <AppIcon name="arrow" :size="18"
+        /></RouterLink>
+      </template>
+      <template v-else>
+        <span class="preview-kicker">给自己留一段好时间</span>
+        <h2>下一段校园时光，<br />由你安排。</h2>
+        <p>选择一个空间，开始今天的计划。</p>
+        <button class="preview-link" @click="scrollToSpaces()">
+          寻找空间 <AppIcon name="arrow" :size="18" />
+        </button>
+      </template>
+      <span class="preview-number" aria-hidden="true">C.</span>
+    </aside>
   </section>
-  <section class="summary-strip" aria-label="演示资源概况">
-    <div>
-      <span class="summary-icon violet"><AppIcon name="grid" /></span>
-      <div>
-        <strong>{{ spaces.length.toString().padStart(2, "0") }}</strong
-        ><span>{{ isDemo ? "精选演示资源" : "可查询资源" }}</span>
-      </div>
-    </div>
-    <div>
-      <span class="summary-icon mint"><AppIcon name="check" /></span>
-      <div>
-        <strong>{{ availableCount.toString().padStart(2, "0") }}</strong
-        ><span>所选日有空闲</span>
-      </div>
-    </div>
-    <div>
-      <span class="summary-icon amber"><AppIcon name="shield" /></span>
-      <div>
-        <strong>3 <small>类</small></strong
-        ><span>学习与运动场景</span>
-      </div>
-    </div>
-    <p>让资源流动起来，<br />让校园生活更从容。</p>
-  </section>
+  <div class="workspace-facts" aria-label="资源概况">
+    <span
+      ><strong>{{ spaces.length.toString().padStart(2, "0") }}</strong>
+      处校园空间</span
+    ><span
+      ><span class="fact-dot" /><strong>{{
+        availableCount.toString().padStart(2, "0")
+      }}</strong>
+      处当日有空闲</span
+    ><span class="facts-date"
+      ><AppIcon name="calendar" :size="15" />{{ overviewDate }}</span
+    >
+  </div>
   <section ref="grid" class="explore-section">
     <div class="section-heading">
       <div>
-        <span class="eyebrow">FIND YOUR NEXT SPOT</span>
-        <h2>发现你的下一站<span class="heading-dot">.</span></h2>
+        <span class="eyebrow">EXPLORE / 选择空间</span>
+        <h2>选一个空间，开始你的计划</h2>
       </div>
       <label class="date-filter"
         ><AppIcon name="calendar" :size="17" /><span class="sr-only"
@@ -214,7 +253,8 @@ function freeLabel(space: Space) {
         ><input
           v-model="keyword"
           type="search"
-          placeholder="搜索空间、位置或设施…"
+          placeholder="搜索名称或地点"
+          aria-label="搜索场地"
       /></label>
     </div>
     <div class="result-meta">
@@ -226,7 +266,18 @@ function freeLabel(space: Space) {
         ><input v-model="onlyAvailable" type="checkbox" />只看有空闲</label
       >
     </div>
-    <div v-if="filtered.length" class="resource-grid">
+    <div
+      v-if="state.loading"
+      class="resource-grid skeleton-grid"
+      role="status"
+      aria-label="正在加载场地"
+    >
+      <div v-for="n in 4" :key="n" class="resource-skeleton">
+        <div />
+        <span /><span />
+      </div>
+    </div>
+    <div v-else-if="filtered.length" class="resource-grid">
       <article
         v-for="space in filtered"
         :key="space.id"
@@ -238,8 +289,11 @@ function freeLabel(space: Space) {
           :aria-label="`查看${space.name}详情`"
           @click="openDetail(space)"
         >
-          <SpaceScene :kind="space.kind" :variant="space.variant" /><span
-            class="scene-category"
+          <SpaceScene
+            :kind="space.kind"
+            :variant="space.variant"
+            :resource-type="space.resourceType"
+          /><span class="scene-category"
             ><AppIcon
               :name="
                 space.kind === 'LIBRARY_SEAT' ||
@@ -302,7 +356,7 @@ function freeLabel(space: Space) {
         {{
           isDemo
             ? "当前资源与占用均为演示样例。"
-            : "当前资源、占用与预约来自主后端。"
+            : "请在使用前核对地点和签到规则。"
         }}</span
       >
     </p>
@@ -322,7 +376,7 @@ function freeLabel(space: Space) {
       ><div class="modal-heading">
         <div>
           <span class="eyebrow">{{
-            isDemo ? "SPACE DETAILS · 演示数据" : "SPACE DETAILS · 服务端数据"
+            isDemo ? "SPACE DETAILS · 演示场地" : "SPACE DETAILS · 场地详情"
           }}</span>
           <h2 id="detail-title">{{ selectedSpace.name }}</h2>
           <p class="muted">
@@ -330,7 +384,7 @@ function freeLabel(space: Space) {
             {{
               selectedSpace.capacity
                 ? `${selectedSpace.capacity} 人`
-                : "容量以场地说明为准"
+                : selectedSpace.code
             }}
             {{
               selectedSpace.kind === "LIBRARY_SEAT" ? "独立座位" : "使用空间"
@@ -417,7 +471,7 @@ function freeLabel(space: Space) {
         class="button secondary"
         :to="`/resources/${selectedSpace.id}/reserve`"
         @click="detailDialog?.close()"
-        >打开完整预约表单<AppIcon name="arrow" :size="16"
+        >自选预约时段<AppIcon name="arrow" :size="16"
       /></RouterLink>
       <button
         v-if="
