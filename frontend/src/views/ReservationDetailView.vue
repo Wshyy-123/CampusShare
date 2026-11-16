@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { useRoute } from "vue-router";
 import { errorMessage } from "../api/http";
 import { reservationsApi } from "../api/reservations";
 import type { Reservation } from "../types/api";
 import { useCampus } from "../composables/useCampus";
+import LibraryCardPanel from "../components/LibraryCardPanel.vue";
+import { authState } from "../stores/auth";
 import PlaceCodeDialog from "../components/PlaceCodeDialog.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 
@@ -27,31 +29,40 @@ const isSports = computed(
 );
 const canCancel = computed(() => {
   const current = reservation.value;
-  if (!current || !isSports.value) return false;
+  if (!current || (!isSports.value && current.resourceType !== "CLASSROOM"))
+    return false;
   return (
     current.status === "RESERVED" && Date.parse(current.startTime) > Date.now()
   );
 });
+let generation = 0;
 async function load() {
+  const version = ++generation;
+  reservation.value = null;
+  actionMessage.value = "";
+  actionError.value = "";
   loading.value = true;
   error.value = "";
   try {
-    reservation.value = await reservationsApi.detail(String(route.params.id));
+    const result = await reservationsApi.detail(String(route.params.id));
+    if (version === generation) reservation.value = result;
   } catch (exception) {
-    error.value = errorMessage(exception);
+    if (version === generation) error.value = errorMessage(exception);
   } finally {
-    loading.value = false;
+    if (version === generation) loading.value = false;
   }
 }
 
 async function cancel() {
   const current = reservation.value;
   if (!current || actionLoading.value) return;
+  const version = generation;
   actionLoading.value = true;
   actionMessage.value = "";
   actionError.value = "";
   try {
     const result = await campus.cancelReservation(current.reservationId);
+    if (version !== generation) return;
     if (result) {
       reservation.value = result;
       actionMessage.value = "已取消，场地已释放";
@@ -73,7 +84,16 @@ function cancelReasonLabel(reason: string | null): string {
   return reason ?? "—";
 }
 
-onMounted(load);
+watch(
+  () => [route.params.id, authState.user?.id],
+  () => {
+    void load();
+  },
+  { immediate: true },
+);
+onBeforeUnmount(() => {
+  generation++;
+});
 </script>
 
 <template>
@@ -164,11 +184,19 @@ onMounted(load);
         </dl>
       </div>
 
-      <div v-if="isSports" class="card panel">
-        <h2>体育场地操作</h2>
+      <LibraryCardPanel
+        v-if="reservation.resourceType === 'LIBRARY_SEAT'"
+        :reservation="reservation"
+        @updated="reservation = $event"
+      />
+      <div
+        v-if="isSports || reservation.resourceType === 'CLASSROOM'"
+        class="card panel"
+      >
+        <h2>{{ isSports ? "体育场地操作" : "教室操作" }}</h2>
         <p class="small">
           使用前可取消；开始后 15
-          分钟内签到；使用结束签退。操作结果以服务端返回为准。
+          分钟内签到；已签到后到预约结束自动完成。操作结果以服务端返回为准。
         </p>
         <div style="display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0">
           <button
@@ -192,7 +220,7 @@ onMounted(load);
             查看地点二维码
           </button>
           <p class="small">
-            到场后使用手机扫描现场地点码签到。预约结束后，再次扫描并选择记录签退。
+            到场后使用手机扫描现场地点码签到。体育预约结束后可再次扫描并选择记录签退。
           </p>
         </div>
         <p v-if="actionMessage" class="alert alert-success">
@@ -201,7 +229,10 @@ onMounted(load);
         <p v-if="actionError" class="alert alert-warning">{{ actionError }}</p>
       </div>
 
-      <div class="alert alert-warning">
+      <div
+        v-if="isSports || reservation.resourceType === 'CLASSROOM'"
+        class="alert alert-warning"
+      >
         教室和体育到期由后台自动释放；体育签退单独记录，不依赖签退才能释放。
       </div>
     </div>

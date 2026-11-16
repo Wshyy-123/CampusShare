@@ -1,5 +1,6 @@
 import { reactive } from "vue";
 import { adminResourcesApi, resourcesApi } from "./resources";
+import { libraryApi } from "./library";
 import { reservationsApi } from "./reservations";
 import { HttpError, request } from "./http";
 import { schedulesApi } from "./schedules";
@@ -7,6 +8,7 @@ import { localDate } from "../utils/presentation";
 import type {
   Availability,
   PlaceScanPayload,
+  CardSwipePayload,
   Resource,
   ResourcePayload,
   Reservation,
@@ -655,7 +657,30 @@ export function createApiCampusService(
     await refreshAfterWrite(version, value.resourceId);
     return value;
   }
+  async function libraryAction(
+    action: "enter" | "leave",
+    reservationId: string,
+    swipe: CardSwipePayload,
+  ): Promise<Reservation> {
+    id(reservationId);
+    id(swipe.resourceId);
+    const version = epoch;
+    const value = await libraryApi[action](reservationId, swipe);
+    current(version);
+    requireValue(
+      value.reservationId === reservationId &&
+        value.resourceId === swipe.resourceId &&
+        value.resourceType === "LIBRARY_SEAT",
+    );
+    reservationToBooking(value);
+    await refreshAfterWrite(version, value.resourceId);
+    return value;
+  }
   return {
+    enterLibrary: (id: string, swipe: CardSwipePayload) =>
+      libraryAction("enter", id, swipe),
+    leaveLibrary: (id: string, swipe: CardSwipePayload) =>
+      libraryAction("leave", id, swipe),
     cancelReservation: (id: string) => reservationAction("cancel", id),
     checkInAtPlace: (id: string, scan: PlaceScanPayload) =>
       reservationAction("checkIn", id, scan),

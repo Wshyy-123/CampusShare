@@ -15,8 +15,6 @@ campusshare:
     enabled: false
   sports-no-show:
     enabled: false
-  legacy-checkin:
-    enabled: false
 
   venue-lifecycle:
     enabled: false

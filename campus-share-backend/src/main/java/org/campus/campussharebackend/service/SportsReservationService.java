@@ -26,7 +26,7 @@ import static org.campus.campussharebackend.service.SportsBookingRules.inCheckIn
 import static org.campus.campussharebackend.service.SportsBookingRules.isSportsResource;
 
 /**
- * 体育预约的取消、签到、签退（XIA-7 / XIA-8），运行在主工程 reservation 业务链路内。
+ * 体育预约取消/签到/签退及教室取消/签到（XIA-7 / XIA-8 / XIA-13），运行在主工程 reservation 业务链路内。
  *
  * <p>写操作遵循共同锁顺序：先锁 resource 行，再锁 reservation 行；锁内重读状态与时间后，
  * 用带状态条件的 UPDATE 落库，影响行数不为 1 即视为并发冲突。身份来自服务端会话。</p>
@@ -57,7 +57,10 @@ public class SportsReservationService {
     @Transactional
     public void cancel(long userId, long reservationId) {
         LockedReservation locked = lock(userId, reservationId);
-        requireSports(locked.resource(), "取消");
+        if (!isSportsResource(locked.resource().getResourceType())
+                && !"CLASSROOM".equals(locked.resource().getResourceType())) {
+            throw new BusinessException(409, "INVALID_STATE", "仅教室和体育预约支持使用前主动取消，座位不可主动取消");
+        }
         Reservation reservation = locked.reservation();
 
         if (STATUS_CANCELLED.equals(reservation.getStatus())) {
@@ -65,7 +68,7 @@ public class SportsReservationService {
                 // AC3：同一取消重复提交，不重复释放、不重复写事件
                 return;
             }
-            throw new BusinessException(409, "INVALID_STATE", "预约已因超时未到被取消，不能按用户取消处理");
+            throw new BusinessException(409, "INVALID_STATE", "预约已因未到或停用等原因取消，不能改为本人取消");
         }
         if (!STATUS_RESERVED.equals(reservation.getStatus())) {
             throw new BusinessException(409, "INVALID_STATE", cancelBlockedMessage(reservation.getStatus()));

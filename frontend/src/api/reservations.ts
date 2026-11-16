@@ -30,7 +30,7 @@ export const reservationsApi = {
     );
   },
 
-  // XIA-7：体育预约使用前取消，成功后返回最新预约详情
+  // XIA-7/13：体育或教室预约使用前取消，成功后返回最新预约详情
   cancel(reservationId: string): Promise<Reservation> {
     return request<Reservation>(
       `/reservations/${encodeURIComponent(reservationId)}/cancel`,

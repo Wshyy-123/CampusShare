@@ -128,3 +128,8 @@ export interface PlaceAttendance {
   reservation: Reservation | null;
   serverTime: string;
 }
+
+export interface CardSwipePayload {
+  resourceId: string;
+  source: "CARD_SIMULATION";
+}

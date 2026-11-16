@@ -26,3 +26,5 @@ npm.cmd run build
 2026-11-13：/admin/resources与/admin/schedules已接真实管理接口，停用和座位未到原因已展示。先升级006/007；后续扩展按[管理与生命周期集成说明](../docs/校享CampusShare_管理与生命周期集成说明_2026-11-13.md)，禁止按裸时段ID删除或在接口失败时回退样例。
 
 2026-11-16：地点二维码、登录回跳及体育取消/扫码动作执行[最新接入说明](../docs/校享CampusShare_扫码与体育模块接入说明_2026-11-16.md)；新增qrcode依赖，先npm ci。本机回环地址生成的码不能作为真机联调地址。
+
+XIA-10/XIA-13：座位详情使用LibraryCardPanel模拟入/离场，教室详情使用共享取消接口。均走useCampus及Session/CSRF，demo不模拟成功。先读../docs/校享CampusShare_刷卡与教室取消接入说明_2026-11-16.md；check:api包含check-library。
