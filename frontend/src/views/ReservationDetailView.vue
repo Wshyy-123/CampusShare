@@ -1,16 +1,37 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { errorMessage } from "../api/http";
 import { reservationsApi } from "../api/reservations";
 import type { Reservation } from "../types/api";
+import { useCampus } from "../composables/useCampus";
+import PlaceCodeDialog from "../components/PlaceCodeDialog.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 
+const SPORTS_TYPES = ["BADMINTON", "TABLE_TENNIS", "TENNIS"];
+
 const route = useRoute();
+const campus = useCampus();
+const placeCode = ref<InstanceType<typeof PlaceCodeDialog> | null>(null);
 const reservation = ref<Reservation | null>(null);
 const loading = ref(true);
 const error = ref("");
+const actionLoading = ref(false);
+const actionMessage = ref("");
+const actionError = ref("");
 
+const isSports = computed(
+  () =>
+    reservation.value !== null &&
+    SPORTS_TYPES.includes(reservation.value.resourceType),
+);
+const canCancel = computed(() => {
+  const current = reservation.value;
+  if (!current || !isSports.value) return false;
+  return (
+    current.status === "RESERVED" && Date.parse(current.startTime) > Date.now()
+  );
+});
 async function load() {
   loading.value = true;
   error.value = "";
@@ -20,6 +41,23 @@ async function load() {
     error.value = errorMessage(exception);
   } finally {
     loading.value = false;
+  }
+}
+
+async function cancel() {
+  const current = reservation.value;
+  if (!current || actionLoading.value) return;
+  actionLoading.value = true;
+  actionMessage.value = "";
+  actionError.value = "";
+  try {
+    const result = await campus.cancelReservation(current.reservationId);
+    if (result) {
+      reservation.value = result;
+      actionMessage.value = "已取消，场地已释放";
+    } else actionError.value = campus.state.error || "取消未成功";
+  } finally {
+    actionLoading.value = false;
   }
 }
 
@@ -126,9 +164,47 @@ onMounted(load);
         </dl>
       </div>
 
+      <div v-if="isSports" class="card panel">
+        <h2>体育场地操作</h2>
+        <p class="small">
+          使用前可取消；开始后 15
+          分钟内签到；使用结束签退。操作结果以服务端返回为准。
+        </p>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0">
+          <button
+            v-if="canCancel"
+            class="btn"
+            :disabled="actionLoading"
+            @click="cancel"
+          >
+            使用前取消
+          </button>
+          <button
+            class="button secondary"
+            @click="
+              placeCode?.open(
+                reservation.resourceId,
+                reservation.resourceName,
+                reservation.location,
+              )
+            "
+          >
+            查看地点二维码
+          </button>
+          <p class="small">
+            到场后使用手机扫描现场地点码签到。预约结束后，再次扫描并选择记录签退。
+          </p>
+        </div>
+        <p v-if="actionMessage" class="alert alert-success">
+          {{ actionMessage }}
+        </p>
+        <p v-if="actionError" class="alert alert-warning">{{ actionError }}</p>
+      </div>
+
       <div class="alert alert-warning">
-        取消、签到和签退属于 XIA-7/XIA-8；本页只展示 XIA-6 的状态查询结果。
+        教室和体育到期由后台自动释放；体育签退单独记录，不依赖签退才能释放。
       </div>
     </div>
+    <PlaceCodeDialog ref="placeCode" />
   </section>
 </template>

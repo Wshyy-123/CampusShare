@@ -80,6 +80,15 @@ export function useCampus() {
         await service.loadAvailability(id, date);
         return true;
       })) ?? false,
+    cancelReservation: async (
+      ...args: Parameters<typeof service.cancelReservation>
+    ) => run(() => service.cancelReservation(...args)),
+    checkInAtPlace: async (
+      ...args: Parameters<typeof service.checkInAtPlace>
+    ) => run(() => service.checkInAtPlace(...args)),
+    checkOutAtPlace: async (
+      ...args: Parameters<typeof service.checkOutAtPlace>
+    ) => run(() => service.checkOutAtPlace(...args)),
     slots: service.slots,
     blocks: service.blocks,
     reserve: async (...args: Parameters<typeof service.reserve>) =>

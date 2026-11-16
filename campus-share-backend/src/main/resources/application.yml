@@ -24,11 +24,16 @@ campusshare:
     # XIA-11：主应用启动即补查积压；仅处理座位成功起30分钟未到。
     enabled: ${CAMPUSSHARE_SEAT_NO_SHOW_ENABLED:true}
     scan-delay-ms: ${CAMPUSSHARE_SEAT_NO_SHOW_DELAY_MS:30000}
-  sports-no-show:
-    # 原 XIA-9 任务按全部 RESERVED 扫描，不符合 V1.2 按资源类型处理的要求；
-    # 在 XIA-9 负责人改为座位/教室/体育分类前默认关闭，避免误取消座位预约。
-    enabled: false
+  venue-lifecycle:
+    enabled: ${CAMPUSSHARE_VENUE_LIFECYCLE_ENABLED:true}
+    scan-delay-ms: ${CAMPUSSHARE_VENUE_LIFECYCLE_DELAY_MS:10000}
   legacy-checkin:
-    # 原 XIA-9/10 的 /api/v1/library 演示入口仍信任请求 userId，默认关闭；
-    # 待 XIA-8 改为会话身份 + 地点码后替换。
+    # 原 XIA-9/10 的 /api/v1/library 演示入口仍信任请求 userId，默认关闭。
     enabled: false
+
+app:
+  sports:
+    # 可签到窗口：[start - early, start + grace)，单位分钟；口径见 docs/api/sports-attendance.yaml
+    check-in-early-minutes: ${CAMPUSSHARE_SPORTS_CHECKIN_EARLY_MINUTES:0}
+    check-in-grace-minutes: ${CAMPUSSHARE_SPORTS_CHECKIN_GRACE_MINUTES:15}
+    no-show-cron: ${CAMPUSSHARE_SPORTS_NO_SHOW_CRON:0/10 * * * * ?}

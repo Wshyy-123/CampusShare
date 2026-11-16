@@ -1,0 +1,82 @@
+openapi: 3.0.3
+info:
+  title: CampusShare 地点签到、体育取消与签退
+  version: 1.0.0
+  description: |
+    Session身份与CSRF沿用主工程。GET只读，POST写入。扫码绑定具体resourceId并记录QR来源。
+    教室/体育签到窗口[start, min(start+15分钟,end))；重复不切换为签退。
+    体育仅在end后签退；自动完成不伪造checkOutAt，后补签退不再次完成。
+    教室/体育15分钟未到处理与到期自动完成由后台执行，教室不新增违规。
+servers:
+  - url: /api/v1
+security:
+  - sessionCookie: []
+paths:
+  /places/{resourceId}:
+    get:
+      summary: 只读地点信息及当前账户可签到或待签退的预约
+      parameters:
+        - {name: resourceId, in: path, required: true, schema: {type: string, pattern: '^[1-9][0-9]*$'}}
+        - {name: reservationId, in: query, required: false, schema: {type: string}}
+      responses:
+        '200': {description: 统一响应data含place、本人reservation或null、serverTime；不登记签到}
+        '401': {description: 未登录}
+        '404': {description: 资源或本人预约不存在}
+        '409': {description: WRONG_PLACE或不支持扫码的资源}
+  /reservations/{reservationId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/ReservationId'
+    post:
+      summary: 本人体育预约使用前取消，已USER_CANCEL则幂等
+      responses:
+        '200': {description: 返回最新本人ReservationVO}
+        '401': {description: 未登录}
+        '403': {description: 缺少有效CSRF}
+        '404': {description: 不存在或不属于本人}
+        '409': {description: 非体育、已开始或状态不允许}
+  /reservations/{reservationId}/check-in:
+    parameters:
+      - $ref: '#/components/parameters/ReservationId'
+    post:
+      summary: 扫描具体教室或体育地点码后确认本人预约
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PlaceScan'}
+      responses:
+        '200': {description: 返回CHECKED_IN及既有或首次签到时间，不重复记事件}
+        '400': {description: 缺少或非法地点/来源}
+        '401': {description: 未登录}
+        '403': {description: 缺少有效CSRF}
+        '404': {description: 不存在或不属于本人}
+        '409': {description: WRONG_PLACE、RESOURCE_UNAVAILABLE或时间/状态不允许}
+  /reservations/{reservationId}/check-out:
+    parameters:
+      - $ref: '#/components/parameters/ReservationId'
+    post:
+      summary: 体育结束后记录实际签退，已自动完成时只补签退记录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PlaceScan'}
+      responses:
+        '200': {description: 返回COMPLETED及checkOutAt，重复调用不重复完成/记录}
+        '400': {description: 缺少或非法地点/来源}
+        '401': {description: 未登录}
+        '403': {description: 缺少有效CSRF}
+        '404': {description: 不存在或不属于本人}
+        '409': {description: 错误地点、非体育、未签到、未结束或状态不允许}
+components:
+  securitySchemes:
+    sessionCookie: {type: apiKey, in: cookie, name: JSESSIONID}
+  parameters:
+    ReservationId: {name: reservationId, in: path, required: true, schema: {type: string, pattern: '^[1-9][0-9]*$'}}
+  schemas:
+    PlaceScan:
+      type: object
+      required: [resourceId, source]
+      properties:
+        resourceId: {type: string, pattern: '^[1-9][0-9]*$'}
+        source: {type: string, enum: [QR]}

@@ -1,4 +1,5 @@
 import type {
+  PlaceScanPayload,
   CreateReservationPayload,
   PageData,
   Reservation,
@@ -26,6 +27,33 @@ export const reservationsApi = {
   detail(reservationId: string): Promise<Reservation> {
     return request<Reservation>(
       `/reservations/${encodeURIComponent(reservationId)}`,
+    );
+  },
+
+  // XIA-7：体育预约使用前取消，成功后返回最新预约详情
+  cancel(reservationId: string): Promise<Reservation> {
+    return request<Reservation>(
+      `/reservations/${encodeURIComponent(reservationId)}/cancel`,
+      { method: "POST" },
+    );
+  },
+
+  // XIA-8：体育扫码签到
+  checkIn(reservationId: string, scan: PlaceScanPayload): Promise<Reservation> {
+    return request<Reservation>(
+      `/reservations/${encodeURIComponent(reservationId)}/check-in`,
+      { method: "POST", body: JSON.stringify(scan) },
+    );
+  },
+
+  // XIA-8：体育扫码签退
+  checkOut(
+    reservationId: string,
+    scan: PlaceScanPayload,
+  ): Promise<Reservation> {
+    return request<Reservation>(
+      `/reservations/${encodeURIComponent(reservationId)}/check-out`,
+      { method: "POST", body: JSON.stringify(scan) },
     );
   },
 };

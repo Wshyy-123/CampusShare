@@ -118,3 +118,13 @@ export interface ScheduleUpdatePayload {
   endTime: string;
   note?: string;
 }
+
+export interface PlaceScanPayload {
+  resourceId: string;
+  source: "QR";
+}
+export interface PlaceAttendance {
+  place: Resource;
+  reservation: Reservation | null;
+  serverTime: string;
+}

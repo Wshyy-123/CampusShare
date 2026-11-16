@@ -6,6 +6,7 @@ import { schedulesApi } from "./schedules";
 import { localDate } from "../utils/presentation";
 import type {
   Availability,
+  PlaceScanPayload,
   Resource,
   ResourcePayload,
   Reservation,
@@ -635,7 +636,31 @@ export function createApiCampusService(
     notify("时段安排已由后端删除。");
     return true;
   }
+  async function reservationAction(
+    action: "cancel" | "checkIn" | "checkOut",
+    reservationId: string,
+    scan?: PlaceScanPayload,
+  ): Promise<Reservation> {
+    id(reservationId);
+    const version = epoch;
+    const value =
+      action === "cancel"
+        ? await reservationsApi.cancel(reservationId)
+        : action === "checkIn"
+          ? await reservationsApi.checkIn(reservationId, scan!)
+          : await reservationsApi.checkOut(reservationId, scan!);
+    current(version);
+    requireValue(value.reservationId === reservationId);
+    reservationToBooking(value);
+    await refreshAfterWrite(version, value.resourceId);
+    return value;
+  }
   return {
+    cancelReservation: (id: string) => reservationAction("cancel", id),
+    checkInAtPlace: (id: string, scan: PlaceScanPayload) =>
+      reservationAction("checkIn", id, scan),
+    checkOutAtPlace: (id: string, scan: PlaceScanPayload) =>
+      reservationAction("checkOut", id, scan),
     mode: "api",
     state,
     reset,

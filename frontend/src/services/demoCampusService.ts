@@ -393,7 +393,13 @@ export function createDemoCampusService(
     return true;
   }
 
+  const realAttendanceOnly = async () => {
+    throw new Error("到离场操作需要后端接口模式，演示数据不会登记签到。");
+  };
   return {
+    cancelReservation: realAttendanceOnly,
+    checkInAtPlace: realAttendanceOnly,
+    checkOutAtPlace: realAttendanceOnly,
     mode: "demo",
     state,
     load: async () => {},

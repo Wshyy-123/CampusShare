@@ -24,3 +24,5 @@ npm.cmd run build
 新增入口先在views实现业务页，再注册pages配置，共用App和theme。局部新增/修改使用弹窗；扫码和可分享详情使用独立路由。XIA-3-XIA-4和LegacyLibraryTerminal为来源材料，不继续发展独立应用。
 
 2026-11-13：/admin/resources与/admin/schedules已接真实管理接口，停用和座位未到原因已展示。先升级006/007；后续扩展按[管理与生命周期集成说明](../docs/校享CampusShare_管理与生命周期集成说明_2026-11-13.md)，禁止按裸时段ID删除或在接口失败时回退样例。
+
+2026-11-16：地点二维码、登录回跳及体育取消/扫码动作执行[最新接入说明](../docs/校享CampusShare_扫码与体育模块接入说明_2026-11-16.md)；新增qrcode依赖，先npm ci。本机回环地址生成的码不能作为真机联调地址。
