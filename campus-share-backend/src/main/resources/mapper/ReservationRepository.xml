@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.campus.campussharebackend.reservation.mapper.ReservationRepository">
+
+    <sql id="reservationColumns">
+        res.id,
+        res.user_id,
+        res.resource_id,
+        res.client_request_id,
+        res.start_at,
+        res.end_at,
+        res.accepted_at,
+        res.arrival_deadline,
+        res.status,
+        res.cancel_reason,
+        res.check_in_at,
+        res.check_out_at,
+        res.created_at,
+        res.updated_at
+    </sql>
+
+    <select id="findByUserAndClientRequestId"
+            resultType="org.campus.campussharebackend.reservation.entity.ReservationRecord">
+        SELECT id, user_id, resource_id, client_request_id, start_at, end_at, accepted_at,
+               arrival_deadline, status, cancel_reason, check_in_at, check_out_at, created_at, updated_at
+        FROM reservation
+        WHERE user_id = #{userId}
+          AND client_request_id = #{clientRequestId}
+    </select>
+
+    <select id="lockByUserAndClientRequestId"
+            resultType="org.campus.campussharebackend.reservation.entity.ReservationRecord">
+        SELECT id, user_id, resource_id, client_request_id, start_at, end_at, accepted_at,
+               arrival_deadline, status, cancel_reason, check_in_at, check_out_at, created_at, updated_at
+        FROM reservation
+        WHERE user_id = #{userId}
+          AND client_request_id = #{clientRequestId}
+        FOR UPDATE
+    </select>
+
+    <select id="lockConflicts" resultType="org.campus.campussharebackend.reservation.entity.ReservationRecord">
+        SELECT id, user_id, resource_id, client_request_id, start_at, end_at, accepted_at,
+               arrival_deadline, status, cancel_reason, check_in_at, check_out_at, created_at, updated_at
+        FROM reservation
+        WHERE resource_id = #{resourceId}
+          AND status IN ('RESERVED', 'CHECKED_IN')
+          AND start_at &lt; #{end}
+          AND end_at &gt; #{start}
+        ORDER BY id
+        FOR UPDATE
+    </select>
+
+    <insert id="insert" parameterType="org.campus.campussharebackend.reservation.entity.ReservationRecord"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO reservation (user_id, resource_id, client_request_id, start_at, end_at,
+                                 accepted_at, arrival_deadline, status, created_at, updated_at)
+        VALUES (#{userId}, #{resourceId}, #{clientRequestId}, #{startAt}, #{endAt},
+                #{acceptedAt}, #{arrivalDeadline}, #{status}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <insert id="insertEvent">
+        INSERT INTO reservation_event (reservation_id, event_type, operator_id, occurred_at, request_id, reason)
+        VALUES (#{reservationId}, #{eventType}, #{operatorId}, #{occurredAt}, #{requestId}, #{reason})
+    </insert>
+
+    <select id="findDetail" resultType="org.campus.campussharebackend.reservation.entity.ReservationRow">
+        SELECT
+        <include refid="reservationColumns"/>,
+        r.name AS resource_name,
+        r.resource_type,
+        r.location,
+        r.unit_label
+        FROM reservation res
+        JOIN resource r ON r.id = res.resource_id
+        WHERE res.id = #{id}
+          AND res.user_id = #{userId}
+    </select>
+
+    <select id="countMine" resultType="long">
+        SELECT COUNT(*)
+        FROM reservation res
+        WHERE res.user_id = #{userId}
+        <if test="status != null and status != ''">
+            AND res.status = #{status}
+        </if>
+        <if test="from != null">
+            AND res.start_at &gt;= #{from}
+        </if>
+        <if test="to != null">
+            AND res.start_at &lt; #{to}
+        </if>
+    </select>
+
+    <select id="listMine" resultType="org.campus.campussharebackend.reservation.entity.ReservationRow">
+        SELECT
+        <include refid="reservationColumns"/>,
+        r.name AS resource_name,
+        r.resource_type,
+        r.location,
+        r.unit_label
+        FROM reservation res
+        JOIN resource r ON r.id = res.resource_id
+        WHERE res.user_id = #{userId}
+        <if test="status != null and status != ''">
+            AND res.status = #{status}
+        </if>
+        <if test="from != null">
+            AND res.start_at &gt;= #{from}
+        </if>
+        <if test="to != null">
+            AND res.start_at &lt; #{to}
+        </if>
+        ORDER BY res.start_at DESC, res.id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+</mapper>

@@ -5,6 +5,8 @@ import org.campus.campussharebackend.entity.Reservation;
 import org.campus.campussharebackend.mapper.ReservationMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -19,9 +21,10 @@ import java.util.List;
  * 因此重复扫描、与签到并发都不会重复取消或重复记违规。</p>
  */
 @Component
+@ConditionalOnProperty(name = "campusshare.sports-no-show.enabled", havingValue = "true", matchIfMissing = true)
 public class SportsTimeoutTask {
 
-    private static final Logger log = LoggerFactory.getLogger(SportsTimeoutTask.class);
+    private static final Logger LOG = LoggerFactory.getLogger(SportsTimeoutTask.class);
 
     private final ReservationMapper reservationMapper;
     private final SportsNoShowService sportsNoShowService;
@@ -30,7 +33,7 @@ public class SportsTimeoutTask {
 
     public SportsTimeoutTask(ReservationMapper reservationMapper,
                              SportsNoShowService sportsNoShowService,
-                             Clock clock,
+                             @Qualifier("lifecycleClock") Clock clock,
                              SportsProperties sportsProperties) {
         this.reservationMapper = reservationMapper;
         this.sportsNoShowService = sportsNoShowService;
@@ -49,11 +52,11 @@ public class SportsTimeoutTask {
                     handled++;
                 }
             } catch (RuntimeException exception) {
-                log.warn("处理超时预约 {} 失败，将在下一轮重试", candidate.getId(), exception);
+                LOG.warn("处理超时预约 {} 失败，将在下一轮重试", candidate.getId(), exception);
             }
         }
         if (handled > 0) {
-            log.info("本轮自动取消 {} 条超时未签到的体育预约", handled);
+            LOG.info("本轮自动取消 {} 条超时未签到的体育预约", handled);
         }
     }
 }

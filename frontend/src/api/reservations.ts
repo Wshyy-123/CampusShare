@@ -1,20 +1,55 @@
-import { request } from './http'
-import type { ApiEnvelope, ReservationDetail } from '../types/reservation'
+import type {
+  CreateReservationPayload,
+  PageData,
+  Reservation,
+} from "../types/api";
+import { queryString, request } from "./http";
 
-const BASE_PATH = '/api/v1/reservations'
+export const reservationsApi = {
+  create(payload: CreateReservationPayload): Promise<Reservation> {
+    return request<Reservation>("/reservations", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
 
-export function getReservation(reservationId: string): Promise<ApiEnvelope<ReservationDetail>> {
-  return request<ReservationDetail>(`${BASE_PATH}/${reservationId}`)
-}
+  mine(params: {
+    status?: string;
+    page?: number;
+    size?: number;
+  }): Promise<PageData<Reservation>> {
+    return request<PageData<Reservation>>(
+      `/reservations/mine${queryString(params)}`,
+    );
+  },
 
-export function cancelReservation(reservationId: string): Promise<ApiEnvelope<ReservationDetail>> {
-  return request<ReservationDetail>(`${BASE_PATH}/${reservationId}/cancel`, { method: 'POST' })
-}
+  detail(reservationId: string): Promise<Reservation> {
+    return request<Reservation>(
+      `/reservations/${encodeURIComponent(reservationId)}`,
+    );
+  },
 
-export function checkInReservation(reservationId: string): Promise<ApiEnvelope<ReservationDetail>> {
-  return request<ReservationDetail>(`${BASE_PATH}/${reservationId}/check-in`, { method: 'POST' })
-}
+  // XIA-7：体育预约使用前取消，成功后返回最新预约详情
+  cancel(reservationId: string): Promise<Reservation> {
+    return request<Reservation>(
+      `/reservations/${encodeURIComponent(reservationId)}/cancel`,
+      { method: "POST" },
+    );
+  },
 
-export function checkOutReservation(reservationId: string): Promise<ApiEnvelope<ReservationDetail>> {
-  return request<ReservationDetail>(`${BASE_PATH}/${reservationId}/check-out`, { method: 'POST' })
-}
+  // XIA-8：体育扫码签到
+  checkIn(reservationId: string): Promise<Reservation> {
+    return request<Reservation>(
+      `/reservations/${encodeURIComponent(reservationId)}/check-in`,
+      { method: "POST" },
+    );
+  },
+
+  // XIA-8：体育扫码签退
+  checkOut(reservationId: string): Promise<Reservation> {
+    return request<Reservation>(
+      `/reservations/${encodeURIComponent(reservationId)}/check-out`,
+      { method: "POST" },
+    );
+  },
+};

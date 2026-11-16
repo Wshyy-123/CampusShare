@@ -2,13 +2,14 @@ package org.campus.campussharebackend.service;
 
 import org.campus.campussharebackend.config.SportsProperties;
 import org.campus.campussharebackend.entity.Reservation;
-import org.campus.campussharebackend.entity.Resource;
-import org.campus.campussharebackend.mapper.ReservationEventMapper;
 import org.campus.campussharebackend.mapper.ReservationMapper;
-import org.campus.campussharebackend.mapper.ResourceMapper;
 import org.campus.campussharebackend.mapper.ViolationRecordMapper;
+import org.campus.campussharebackend.reservation.mapper.ReservationRepository;
+import org.campus.campussharebackend.resource.entity.ResourceRecord;
+import org.campus.campussharebackend.resource.mapper.ResourceMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,33 +22,33 @@ import static org.campus.campussharebackend.service.SportsBookingRules.isNoShow;
 import static org.campus.campussharebackend.service.SportsBookingRules.isSportsResource;
 
 /**
- * 体育预约超时未到处理（XIA-9 的后台逻辑，本次为配合 XIA-8 做一致性修正）。
+ * 体育预约超时未到处理（XIA-9 后台逻辑，接入主工程时按资源类型与状态条件修正）。
  *
- * <p>每一条候选单独一个事务：先锁 resource 行、再锁 reservation 行，锁内重读状态与期限。
- * 取消、写事件、记违规在同一事务内完成；任一步失败整条回滚，下一轮可重试。</p>
+ * <p>每条候选单独一个事务：先锁 resource、再锁 reservation，锁内重读状态与期限；
+ * 取消、写事件、记违规同事务提交，任一步失败整条回滚，下一轮可重试。</p>
  */
 @Service
 public class SportsNoShowService {
 
-    private static final Logger log = LoggerFactory.getLogger(SportsNoShowService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(SportsNoShowService.class);
     private static final String VIOLATION_SPORTS_NO_SHOW = "SPORTS_NO_SHOW";
 
     private final ReservationMapper reservationMapper;
     private final ResourceMapper resourceMapper;
-    private final ReservationEventMapper reservationEventMapper;
+    private final ReservationRepository reservationRepository;
     private final ViolationRecordMapper violationRecordMapper;
     private final Clock clock;
     private final SportsProperties sportsProperties;
 
     public SportsNoShowService(ReservationMapper reservationMapper,
                                ResourceMapper resourceMapper,
-                               ReservationEventMapper reservationEventMapper,
+                               ReservationRepository reservationRepository,
                                ViolationRecordMapper violationRecordMapper,
-                               Clock clock,
+                               @Qualifier("lifecycleClock") Clock clock,
                                SportsProperties sportsProperties) {
         this.reservationMapper = reservationMapper;
         this.resourceMapper = resourceMapper;
-        this.reservationEventMapper = reservationEventMapper;
+        this.reservationRepository = reservationRepository;
         this.violationRecordMapper = violationRecordMapper;
         this.clock = clock;
         this.sportsProperties = sportsProperties;
@@ -62,7 +63,7 @@ public class SportsNoShowService {
         if (snapshot == null) {
             return false;
         }
-        Resource resource = resourceMapper.findByIdForUpdate(snapshot.getResourceId());
+        ResourceRecord resource = resourceMapper.lockById(snapshot.getResourceId());
         if (resource == null) {
             return false;
         }
@@ -83,10 +84,11 @@ public class SportsNoShowService {
             return false;
         }
 
-        reservationEventMapper.insert(reservationId, "NO_SHOW", null, now, null, REASON_NO_SHOW);
+        reservationRepository.insertEvent(reservationId, "NO_SHOW", null, now,
+                "system-sports-no-show", "NO_SHOW");
         violationRecordMapper.insertViolationIfAbsent(
                 reservation.getUserId(), reservationId, VIOLATION_SPORTS_NO_SHOW, now);
-        log.info("体育预约 {} 超时未签到，已自动取消并记录违规", reservationId);
+        LOG.info("体育预约 {} 超时未签到，已自动取消并记录违规", reservationId);
         return true;
     }
 }

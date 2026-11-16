@@ -1,0 +1,57 @@
+name: XIA-11 and XIA-14 checks
+
+on:
+  push:
+    paths:
+      - 'backend/reservation-lifecycle/**'
+      - 'docs/api/lifecycle.yaml'
+      - '.github/workflows/lifecycle.yml'
+  pull_request:
+    paths:
+      - 'backend/reservation-lifecycle/**'
+      - 'docs/api/lifecycle.yaml'
+      - '.github/workflows/lifecycle.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  mysql-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: lifecycle_ci_only
+          MYSQL_DATABASE: campusshare_lifecycle_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -plifecycle_ci_only"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    defaults:
+      run:
+        working-directory: backend/reservation-lifecycle
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/reservation-lifecycle/pom.xml
+      - name: Verify against MySQL 8.4
+        run: sh ./mvnw -B verify
+        env:
+          LIFECYCLE_MYSQL_TEST: 'true'
+          LIFECYCLE_TEST_DB_URL: 'jdbc:mysql://127.0.0.1:3306/campusshare_lifecycle_test?connectionTimeZone=%2B08:00&forceConnectionTimeZoneToSession=true&useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=UTF-8'
+          LIFECYCLE_TEST_DB_USER: root
+          LIFECYCLE_TEST_DB_PASSWORD: lifecycle_ci_only
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lifecycle-test-reports
+          path: backend/reservation-lifecycle/target/surefire-reports/

@@ -1,63 +1,88 @@
-import type { ApiEnvelope } from '../types/reservation'
-
-const DEBUG_USER_STORAGE_KEY = 'campusshare.debugUserId'
-const DEBUG_USER_HEADER = 'X-Debug-User-Id'
-
-export class ApiError extends Error {
-  readonly httpStatus: number
-  readonly code: string
-  readonly requestId: string
-
-  constructor(httpStatus: number, code: string, message: string, requestId: string) {
-    super(message)
-    this.name = 'ApiError'
-    this.httpStatus = httpStatus
-    this.code = code
-    this.requestId = requestId
+import { request as transport, ApiError } from "./request";
+export { ApiError as HttpError } from "./request";
+let csrfToken: { token: string; headerName: string } | undefined;
+let csrfPromise: Promise<{ token: string; headerName: string }> | undefined;
+let unauthorizedHandler: (() => void) | undefined;
+let csrfGeneration = 0;
+export function setUnauthorizedHandler(handler: () => void) {
+  unauthorizedHandler = handler;
+}
+export function clearCsrfToken() {
+  csrfGeneration++;
+  csrfToken = undefined;
+  csrfPromise = undefined;
+}
+async function csrf() {
+  if (csrfToken) return csrfToken;
+  if (!csrfPromise) {
+    const generation = csrfGeneration;
+    csrfPromise = transport<{ token: string; headerName: string }>("/auth/csrf")
+      .then((value) => {
+        if (
+          !value ||
+          typeof value.token !== "string" ||
+          !value.token ||
+          typeof value.headerName !== "string" ||
+          !/^[A-Za-z0-9-]+$/.test(value.headerName)
+        )
+          throw new ApiError("BAD_RESPONSE", "CSRF响应格式错误");
+        if (generation !== csrfGeneration)
+          throw new ApiError("AUTH_CHANGED", "登录状态已变化，请重试");
+        csrfToken = value;
+        return value;
+      })
+      .catch((error) => {
+        if (generation === csrfGeneration) csrfPromise = undefined;
+        throw error;
+      });
   }
+  return csrfPromise;
 }
-
-// 登录（XIA-1）落地前的临时身份，仅在开发环境由后端接受；见 docs/api/sports-attendance.yaml
-export function getDebugUserId(): string {
-  return window.localStorage.getItem(DEBUG_USER_STORAGE_KEY) ?? '1'
-}
-
-export function setDebugUserId(userId: string): void {
-  window.localStorage.setItem(DEBUG_USER_STORAGE_KEY, userId)
-}
-
-/**
- * 统一请求封装：解析 code/message/data/requestId，失败抛 ApiError，页面只处理业务提示。
- */
-export async function request<T>(path: string, init: RequestInit = {}): Promise<ApiEnvelope<T>> {
-  const headers = new Headers(init.headers)
-  headers.set('Accept', 'application/json')
-  headers.set(DEBUG_USER_HEADER, getDebugUserId())
-  if (init.body !== undefined) {
-    headers.set('Content-Type', 'application/json')
-  }
-
-  let response: Response
+export async function request<T>(
+  path: string,
+  options: RequestInit = {},
+  retried = false,
+): Promise<T> {
+  const requestGeneration = csrfGeneration;
+  const method = (options.method ?? "GET").toUpperCase();
+  if (!["GET", "POST", "PUT", "PATCH", "DELETE"].includes(method))
+    throw new ApiError("INVALID_METHOD", "不支持的请求方法");
+  const token = method === "GET" ? undefined : await csrf();
   try {
-    response = await fetch(path, { ...init, headers })
-  } catch {
-    throw new ApiError(0, 'NETWORK_ERROR', '网络请求失败，请确认后端已启动', '')
+    return await transport<T>(path, {
+      method: method as "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+      body:
+        typeof options.body === "string" ? JSON.parse(options.body) : undefined,
+      csrf: token,
+      signal: options.signal ?? undefined,
+    });
+  } catch (error) {
+    if (
+      error instanceof ApiError &&
+      error.status === 403 &&
+      error.code === "CSRF_INVALID" &&
+      !retried
+    ) {
+      clearCsrfToken();
+      return request<T>(path, options, true);
+    }
+    if (error instanceof ApiError && error.status === 401) {
+      if (requestGeneration !== csrfGeneration)
+        throw new ApiError("AUTH_CHANGED", "登录状态已变化");
+      clearCsrfToken();
+      unauthorizedHandler?.();
+    }
+    throw error;
   }
-
-  let envelope: ApiEnvelope<T> | null = null
-  try {
-    envelope = (await response.json()) as ApiEnvelope<T>
-  } catch {
-    envelope = null
-  }
-
-  if (!response.ok || envelope === null || envelope.code !== 'OK') {
-    throw new ApiError(
-      response.status,
-      envelope?.code ?? `HTTP_${response.status}`,
-      envelope?.message ?? `请求失败（HTTP ${response.status}）`,
-      envelope?.requestId ?? '',
-    )
-  }
-  return envelope
+}
+export function queryString(
+  params: Record<string, string | number | undefined>,
+) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params))
+    if (value !== undefined && value !== "") search.set(key, String(value));
+  return search.size ? `?${search}` : "";
+}
+export function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "操作失败，请稍后重试";
 }

@@ -1,8 +1,6 @@
 package org.campus.campussharebackend.service;
 
-import org.campus.campussharebackend.common.ApiException;
-import org.campus.campussharebackend.common.ErrorCode;
-import org.campus.campussharebackend.dto.ReservationDetailResponse;
+import org.campus.campussharebackend.common.BusinessException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,6 +8,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -17,14 +16,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * XIA-7 / XIA-8 使用真实 MySQL 的联调测试。
+ * XIA-7 / XIA-8 使用真实 MySQL 的联调测试（主工程 schema 001~007）。
  *
- * <p>默认跳过；需要设置环境变量 MYSQL_TEST=true，并让应用连到已应用
- * 001~004 脚本的数据库。运行方式见 docs/verification/XIA-7-XIA-8.md。</p>
- *
- * <p>测试在事务内执行并回滚，不留下数据。</p>
+ * <p>默认跳过；设置 MYSQL_TEST=true 并让应用连到已应用全部迁移的数据库后执行。
+ * 测试在事务内执行并回滚。</p>
  */
-@SpringBootTest(properties = "app.sports.no-show-cron=-")
+@SpringBootTest(properties = {
+        "campusshare.sports-no-show.enabled=false",
+        "campusshare.seat-no-show.enabled=false"
+})
 @EnabledIfEnvironmentVariable(named = "MYSQL_TEST", matches = "true")
 @Transactional
 class SportsReservationIntegrationTest {
@@ -44,37 +44,31 @@ class SportsReservationIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    // ===================== XIA-7 =====================
-
     @Test
     void cancelReleasesOccupationAndRepeatedCancelDoesNotWriteAgain() {
         long id = insertReservation(STUDENT_USER_ID, SPORTS_RESOURCE_ID,
                 LocalDateTime.now().plusHours(2), LocalDateTime.now().plusHours(3), "RESERVED", null);
 
-        ReservationDetailResponse first = sportsReservationService.cancel(STUDENT_USER_ID, id);
+        sportsReservationService.cancel(STUDENT_USER_ID, id);
 
-        assertThat(first.status()).isEqualTo("CANCELLED");
-        assertThat(first.cancelReason()).isEqualTo("USER_CANCEL");
         assertThat(statusOf(id)).isEqualTo("CANCELLED");
-        assertThat(countEvents(id, "CANCEL")).isEqualTo(1);
+        assertThat(cancelReasonOf(id)).isEqualTo("USER_CANCEL");
+        assertThat(countEvents(id, "CANCELLED")).isEqualTo(1);
 
-        // AC3：同一取消重复提交，不重复释放、不重复写事件
-        ReservationDetailResponse second = sportsReservationService.cancel(STUDENT_USER_ID, id);
+        // 重复取消：不重复释放、不重复写事件
+        sportsReservationService.cancel(STUDENT_USER_ID, id);
 
-        assertThat(second.status()).isEqualTo("CANCELLED");
-        assertThat(countEvents(id, "CANCEL")).isEqualTo(1);
+        assertThat(countEvents(id, "CANCELLED")).isEqualTo(1);
     }
 
     @Test
-    void cancelAfterStartIsRejectedAndKeepingReservation() {
+    void cancelAfterStartIsRejected() {
         long id = insertReservation(STUDENT_USER_ID, SPORTS_RESOURCE_ID,
                 LocalDateTime.now().minusMinutes(1), LocalDateTime.now().plusMinutes(59), "RESERVED", null);
 
-        assertThatThrownBy(() -> sportsReservationService.cancel(STUDENT_USER_ID, id))
-                .isInstanceOfSatisfying(ApiException.class,
-                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+        assertBusinessError(409, "INVALID_STATE", () -> sportsReservationService.cancel(STUDENT_USER_ID, id));
         assertThat(statusOf(id)).isEqualTo("RESERVED");
-        assertThat(countEvents(id, "CANCEL")).isZero();
+        assertThat(countEvents(id, "CANCELLED")).isZero();
     }
 
     @Test
@@ -82,9 +76,7 @@ class SportsReservationIntegrationTest {
         long id = insertReservation(STUDENT_USER_ID, SEAT_RESOURCE_ID,
                 LocalDateTime.now().plusHours(2), LocalDateTime.now().plusHours(3), "RESERVED", null);
 
-        assertThatThrownBy(() -> sportsReservationService.cancel(STUDENT_USER_ID, id))
-                .isInstanceOfSatisfying(ApiException.class,
-                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+        assertBusinessError(409, "INVALID_STATE", () -> sportsReservationService.cancel(STUDENT_USER_ID, id));
     }
 
     @Test
@@ -92,24 +84,20 @@ class SportsReservationIntegrationTest {
         long id = insertReservation(OTHER_USER_ID, SPORTS_RESOURCE_ID,
                 LocalDateTime.now().plusHours(2), LocalDateTime.now().plusHours(3), "RESERVED", null);
 
-        assertThatThrownBy(() -> sportsReservationService.cancel(STUDENT_USER_ID, id))
-                .isInstanceOfSatisfying(ApiException.class,
-                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESERVATION_NOT_FOUND));
+        assertBusinessError(404, "RESERVATION_NOT_FOUND",
+                () -> sportsReservationService.cancel(STUDENT_USER_ID, id));
     }
-
-    // ===================== XIA-8 =====================
 
     @Test
     void checkInInsideWindowRecordsTimeAndStatus() {
         long id = insertReservation(STUDENT_USER_ID, SPORTS_RESOURCE_ID,
                 LocalDateTime.now().minusMinutes(1), LocalDateTime.now().plusMinutes(59), "RESERVED", null);
 
-        ReservationDetailResponse response = sportsReservationService.checkIn(STUDENT_USER_ID, id);
+        sportsReservationService.checkIn(STUDENT_USER_ID, id);
 
-        assertThat(response.status()).isEqualTo("CHECKED_IN");
-        assertThat(response.checkInAt()).isNotNull();
         assertThat(statusOf(id)).isEqualTo("CHECKED_IN");
-        assertThat(countEvents(id, "CHECK_IN")).isEqualTo(1);
+        assertThat(checkInAtOf(id)).isNotNull();
+        assertThat(countEvents(id, "CHECKED_IN")).isEqualTo(1);
     }
 
     @Test
@@ -117,9 +105,7 @@ class SportsReservationIntegrationTest {
         long id = insertReservation(STUDENT_USER_ID, SPORTS_RESOURCE_ID,
                 LocalDateTime.now().plusMinutes(30), LocalDateTime.now().plusMinutes(90), "RESERVED", null);
 
-        assertThatThrownBy(() -> sportsReservationService.checkIn(STUDENT_USER_ID, id))
-                .isInstanceOfSatisfying(ApiException.class,
-                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+        assertBusinessError(409, "INVALID_STATE", () -> sportsReservationService.checkIn(STUDENT_USER_ID, id));
         assertThat(statusOf(id)).isEqualTo("RESERVED");
     }
 
@@ -133,12 +119,10 @@ class SportsReservationIntegrationTest {
         assertThat(cancelReasonOf(id)).isEqualTo("NO_SHOW");
         assertThat(countViolations(id)).isEqualTo(1);
 
-        // AC3：超时取消后再扫码，不恢复原占用
-        assertThatThrownBy(() -> sportsReservationService.checkIn(OTHER_USER_ID, id))
-                .isInstanceOfSatisfying(ApiException.class,
-                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+        assertBusinessError(409, "INVALID_STATE",
+                () -> sportsReservationService.checkIn(OTHER_USER_ID, id));
         assertThat(statusOf(id)).isEqualTo("CANCELLED");
-        assertThat(countEvents(id, "CHECK_IN")).isZero();
+        assertThat(countEvents(id, "CHECKED_IN")).isZero();
 
         // 后台重跑不重复记违规
         assertThat(sportsNoShowService.handle(id)).isFalse();
@@ -160,28 +144,36 @@ class SportsReservationIntegrationTest {
                 LocalDateTime.now().minusMinutes(30), LocalDateTime.now().plusMinutes(30), "CHECKED_IN",
                 LocalDateTime.now().minusMinutes(30));
 
-        ReservationDetailResponse response = sportsReservationService.checkOut(STUDENT_USER_ID, id);
+        sportsReservationService.checkOut(STUDENT_USER_ID, id);
 
-        assertThat(response.status()).isEqualTo("COMPLETED");
-        assertThat(response.checkOutAt()).isNotNull();
         assertThat(statusOf(id)).isEqualTo("COMPLETED");
-        assertThat(countEvents(id, "CHECK_OUT")).isEqualTo(1);
+        assertThat(checkOutAtOf(id)).isNotNull();
+        assertThat(countEvents(id, "COMPLETED")).isEqualTo(1);
     }
 
     // ===================== 工具方法 =====================
+
+    private void assertBusinessError(int status, String code, Runnable action) {
+        assertThatThrownBy(action::run).isInstanceOfSatisfying(BusinessException.class, exception -> {
+            assertThat(exception.status()).isEqualTo(status);
+            assertThat(exception.code()).isEqualTo(code);
+        });
+    }
 
     private long insertReservation(long userId, long resourceId,
                                    LocalDateTime startAt, LocalDateTime endAt,
                                    String status, LocalDateTime checkInAt) {
         long id = ID_SEQUENCE.incrementAndGet();
         jdbcTemplate.update("""
-                        INSERT INTO reservation (id, user_id, resource_id, accepted_at, start_at, end_at, status, check_in_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO reservation
+                            (id, user_id, resource_id, client_request_id, accepted_at, arrival_deadline,
+                             start_at, end_at, status, check_in_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
-                id, userId, resourceId,
-                java.sql.Timestamp.valueOf(startAt), java.sql.Timestamp.valueOf(startAt),
-                java.sql.Timestamp.valueOf(endAt), status,
-                checkInAt == null ? null : java.sql.Timestamp.valueOf(checkInAt));
+                id, userId, resourceId, "it-" + id,
+                Timestamp.valueOf(startAt), Timestamp.valueOf(startAt.plusMinutes(15)),
+                Timestamp.valueOf(startAt), Timestamp.valueOf(endAt), status,
+                checkInAt == null ? null : Timestamp.valueOf(checkInAt));
         return id;
     }
 
@@ -191,6 +183,14 @@ class SportsReservationIntegrationTest {
 
     private String cancelReasonOf(long id) {
         return jdbcTemplate.queryForObject("SELECT cancel_reason FROM reservation WHERE id = ?", String.class, id);
+    }
+
+    private Timestamp checkInAtOf(long id) {
+        return jdbcTemplate.queryForObject("SELECT check_in_at FROM reservation WHERE id = ?", Timestamp.class, id);
+    }
+
+    private Timestamp checkOutAtOf(long id) {
+        return jdbcTemplate.queryForObject("SELECT check_out_at FROM reservation WHERE id = ?", Timestamp.class, id);
     }
 
     private int countEvents(long reservationId, String eventType) {

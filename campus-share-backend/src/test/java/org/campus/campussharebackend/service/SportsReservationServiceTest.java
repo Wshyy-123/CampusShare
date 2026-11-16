@@ -1,14 +1,12 @@
 package org.campus.campussharebackend.service;
 
-import org.campus.campussharebackend.common.ApiException;
-import org.campus.campussharebackend.common.ErrorCode;
+import org.campus.campussharebackend.common.BusinessException;
 import org.campus.campussharebackend.config.SportsProperties;
-import org.campus.campussharebackend.dto.ReservationDetailResponse;
 import org.campus.campussharebackend.entity.Reservation;
-import org.campus.campussharebackend.entity.Resource;
-import org.campus.campussharebackend.mapper.ReservationEventMapper;
 import org.campus.campussharebackend.mapper.ReservationMapper;
-import org.campus.campussharebackend.mapper.ResourceMapper;
+import org.campus.campussharebackend.reservation.mapper.ReservationRepository;
+import org.campus.campussharebackend.resource.entity.ResourceRecord;
+import org.campus.campussharebackend.resource.mapper.ResourceMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,14 +21,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * XIA-7 / XIA-8 的服务层行为测试：权限、状态冲突、时间窗口、幂等与事件记录。
+ * XIA-7 / XIA-8 服务层行为测试（主工程会话身份 + BusinessException 口径）。
  */
 @ExtendWith(MockitoExtension.class)
 class SportsReservationServiceTest {
@@ -46,7 +43,7 @@ class SportsReservationServiceTest {
     @Mock
     private ResourceMapper resourceMapper;
     @Mock
-    private ReservationEventMapper reservationEventMapper;
+    private ReservationRepository reservationRepository;
 
     private SportsReservationService service;
 
@@ -55,7 +52,7 @@ class SportsReservationServiceTest {
         SportsProperties properties = new SportsProperties();
         Clock clock = Clock.fixed(NOW.atZone(ZoneId.of("Asia/Shanghai")).toInstant(), ZoneId.of("Asia/Shanghai"));
         service = new SportsReservationService(
-                reservationMapper, resourceMapper, reservationEventMapper, clock, properties);
+                reservationMapper, resourceMapper, reservationRepository, clock, properties);
     }
 
     // ===================== XIA-7 取消 =====================
@@ -64,21 +61,14 @@ class SportsReservationServiceTest {
     void cancelsReservationBeforeStartAndRecordsEvent() {
         Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_RESERVED, NOW.plusHours(2));
         stubLock(reservation, "BADMINTON");
-        when(resourceMapper.findById(RESOURCE_ID)).thenReturn(resource("BADMINTON"));
         when(reservationMapper.cancelIfReserved(RESERVATION_ID, SportsBookingRules.REASON_USER_CANCEL, NOW))
-                .thenAnswer(invocation -> {
-                    reservation.setStatus(SportsBookingRules.STATUS_CANCELLED);
-                    reservation.setCancelReason(SportsBookingRules.REASON_USER_CANCEL);
-                    return 1;
-                });
+                .thenReturn(1);
 
-        ReservationDetailResponse response = service.cancel(USER_ID, RESERVATION_ID);
+        service.cancel(USER_ID, RESERVATION_ID);
 
-        assertThat(response.status()).isEqualTo(SportsBookingRules.STATUS_CANCELLED);
-        assertThat(response.cancelReason()).isEqualTo(SportsBookingRules.REASON_USER_CANCEL);
-        verify(reservationEventMapper).insert(
-                eq(RESERVATION_ID), eq("CANCEL"), eq(USER_ID), eq(NOW), isNull(),
-                eq(SportsBookingRules.REASON_USER_CANCEL));
+        verify(reservationMapper).cancelIfReserved(RESERVATION_ID, SportsBookingRules.REASON_USER_CANCEL, NOW);
+        verify(reservationRepository).insertEvent(
+                eq(RESERVATION_ID), eq("CANCELLED"), eq(USER_ID), eq(NOW), any(), eq("USER_CANCEL"));
     }
 
     @Test
@@ -86,11 +76,9 @@ class SportsReservationServiceTest {
         Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_RESERVED, NOW);
         stubLock(reservation, "BADMINTON");
 
-        assertThatThrownBy(() -> service.cancel(USER_ID, RESERVATION_ID))
-                .isInstanceOfSatisfying(ApiException.class,
-                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+        assertBusinessError(409, "INVALID_STATE", () -> service.cancel(USER_ID, RESERVATION_ID));
         verify(reservationMapper, never()).cancelIfReserved(any(), any(), any());
-        verifyNoInteractions(reservationEventMapper);
+        verifyNoInteractions(reservationRepository);
     }
 
     @Test
@@ -98,13 +86,11 @@ class SportsReservationServiceTest {
         Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_CANCELLED, NOW.plusHours(2));
         reservation.setCancelReason(SportsBookingRules.REASON_USER_CANCEL);
         stubLock(reservation, "BADMINTON");
-        when(resourceMapper.findById(RESOURCE_ID)).thenReturn(resource("BADMINTON"));
 
-        ReservationDetailResponse response = service.cancel(USER_ID, RESERVATION_ID);
+        service.cancel(USER_ID, RESERVATION_ID);
 
-        assertThat(response.status()).isEqualTo(SportsBookingRules.STATUS_CANCELLED);
         verify(reservationMapper, never()).cancelIfReserved(any(), any(), any());
-        verifyNoInteractions(reservationEventMapper);
+        verifyNoInteractions(reservationRepository);
     }
 
     @Test
@@ -113,10 +99,8 @@ class SportsReservationServiceTest {
         reservation.setCancelReason(SportsBookingRules.REASON_NO_SHOW);
         stubLock(reservation, "BADMINTON");
 
-        assertThatThrownBy(() -> service.cancel(USER_ID, RESERVATION_ID))
-                .isInstanceOfSatisfying(ApiException.class,
-                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
-        verifyNoInteractions(reservationEventMapper);
+        assertBusinessError(409, "INVALID_STATE", () -> service.cancel(USER_ID, RESERVATION_ID));
+        verifyNoInteractions(reservationRepository);
     }
 
     @Test
@@ -124,9 +108,7 @@ class SportsReservationServiceTest {
         Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_CHECKED_IN, NOW.plusHours(2));
         stubLock(reservation, "BADMINTON");
 
-        assertThatThrownBy(() -> service.cancel(USER_ID, RESERVATION_ID))
-                .isInstanceOfSatisfying(ApiException.class,
-                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+        assertBusinessError(409, "INVALID_STATE", () -> service.cancel(USER_ID, RESERVATION_ID));
     }
 
     @Test
@@ -134,10 +116,8 @@ class SportsReservationServiceTest {
         when(reservationMapper.findById(RESERVATION_ID))
                 .thenReturn(reservation(OTHER_USER_ID, SportsBookingRules.STATUS_RESERVED, NOW.plusHours(2)));
 
-        assertThatThrownBy(() -> service.cancel(USER_ID, RESERVATION_ID))
-                .isInstanceOfSatisfying(ApiException.class,
-                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESERVATION_NOT_FOUND));
-        verifyNoInteractions(resourceMapper, reservationEventMapper);
+        assertBusinessError(404, "RESERVATION_NOT_FOUND", () -> service.cancel(USER_ID, RESERVATION_ID));
+        verifyNoInteractions(resourceMapper, reservationRepository);
     }
 
     @Test
@@ -145,9 +125,7 @@ class SportsReservationServiceTest {
         Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_RESERVED, NOW.plusHours(2));
         stubLock(reservation, "LIBRARY_SEAT");
 
-        assertThatThrownBy(() -> service.cancel(USER_ID, RESERVATION_ID))
-                .isInstanceOfSatisfying(ApiException.class,
-                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+        assertBusinessError(409, "INVALID_STATE", () -> service.cancel(USER_ID, RESERVATION_ID));
         verify(reservationMapper, never()).cancelIfReserved(any(), any(), any());
     }
 
@@ -157,19 +135,13 @@ class SportsReservationServiceTest {
     void checksInInsideWindowAndRecordsEvent() {
         Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_RESERVED, NOW.minusMinutes(5));
         stubLock(reservation, "BADMINTON");
-        when(resourceMapper.findById(RESOURCE_ID)).thenReturn(resource("BADMINTON"));
-        when(reservationMapper.checkInIfReserved(RESERVATION_ID, NOW)).thenAnswer(invocation -> {
-            reservation.setStatus(SportsBookingRules.STATUS_CHECKED_IN);
-            reservation.setCheckInAt(NOW);
-            return 1;
-        });
+        when(reservationMapper.checkInIfReserved(RESERVATION_ID, NOW)).thenReturn(1);
 
-        ReservationDetailResponse response = service.checkIn(USER_ID, RESERVATION_ID);
+        service.checkIn(USER_ID, RESERVATION_ID);
 
-        assertThat(response.status()).isEqualTo(SportsBookingRules.STATUS_CHECKED_IN);
-        assertThat(response.checkInAt()).isEqualTo("2026-11-04T09:30:00+08:00");
-        verify(reservationEventMapper).insert(
-                eq(RESERVATION_ID), eq("CHECK_IN"), eq(USER_ID), eq(NOW), isNull(), isNull());
+        verify(reservationMapper).checkInIfReserved(RESERVATION_ID, NOW);
+        verify(reservationRepository).insertEvent(
+                eq(RESERVATION_ID), eq("CHECKED_IN"), eq(USER_ID), eq(NOW), any(), eq("CHECK_IN"));
     }
 
     @Test
@@ -177,9 +149,7 @@ class SportsReservationServiceTest {
         Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_RESERVED, NOW.plusMinutes(10));
         stubLock(reservation, "BADMINTON");
 
-        assertThatThrownBy(() -> service.checkIn(USER_ID, RESERVATION_ID))
-                .isInstanceOfSatisfying(ApiException.class,
-                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+        assertBusinessError(409, "INVALID_STATE", () -> service.checkIn(USER_ID, RESERVATION_ID));
         verify(reservationMapper, never()).checkInIfReserved(any(), any());
     }
 
@@ -188,9 +158,7 @@ class SportsReservationServiceTest {
         Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_RESERVED, NOW.minusMinutes(15));
         stubLock(reservation, "BADMINTON");
 
-        assertThatThrownBy(() -> service.checkIn(USER_ID, RESERVATION_ID))
-                .isInstanceOfSatisfying(ApiException.class,
-                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+        assertBusinessError(409, "INVALID_STATE", () -> service.checkIn(USER_ID, RESERVATION_ID));
         verify(reservationMapper, never()).checkInIfReserved(any(), any());
     }
 
@@ -200,25 +168,20 @@ class SportsReservationServiceTest {
         reservation.setCancelReason(SportsBookingRules.REASON_NO_SHOW);
         stubLock(reservation, "BADMINTON");
 
-        assertThatThrownBy(() -> service.checkIn(USER_ID, RESERVATION_ID))
-                .isInstanceOfSatisfying(ApiException.class,
-                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+        assertBusinessError(409, "INVALID_STATE", () -> service.checkIn(USER_ID, RESERVATION_ID));
         verify(reservationMapper, never()).checkInIfReserved(any(), any());
-        verifyNoInteractions(reservationEventMapper);
+        verifyNoInteractions(reservationRepository);
     }
 
     @Test
-    void repeatedCheckInReturnsCurrentState() {
+    void repeatedCheckInIsNoOp() {
         Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_CHECKED_IN, NOW.minusMinutes(5));
-        reservation.setCheckInAt(NOW.minusMinutes(3));
         stubLock(reservation, "BADMINTON");
-        when(resourceMapper.findById(RESOURCE_ID)).thenReturn(resource("BADMINTON"));
 
-        ReservationDetailResponse response = service.checkIn(USER_ID, RESERVATION_ID);
+        service.checkIn(USER_ID, RESERVATION_ID);
 
-        assertThat(response.status()).isEqualTo(SportsBookingRules.STATUS_CHECKED_IN);
         verify(reservationMapper, never()).checkInIfReserved(any(), any());
-        verifyNoInteractions(reservationEventMapper);
+        verifyNoInteractions(reservationRepository);
     }
 
     // ===================== XIA-8 签退 =====================
@@ -227,19 +190,13 @@ class SportsReservationServiceTest {
     void checkOutCompletesReservation() {
         Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_CHECKED_IN, NOW.minusMinutes(30));
         stubLock(reservation, "BADMINTON");
-        when(resourceMapper.findById(RESOURCE_ID)).thenReturn(resource("BADMINTON"));
-        when(reservationMapper.checkOutIfCheckedIn(RESERVATION_ID, NOW)).thenAnswer(invocation -> {
-            reservation.setStatus(SportsBookingRules.STATUS_COMPLETED);
-            reservation.setCheckOutAt(NOW);
-            return 1;
-        });
+        when(reservationMapper.checkOutIfCheckedIn(RESERVATION_ID, NOW)).thenReturn(1);
 
-        ReservationDetailResponse response = service.checkOut(USER_ID, RESERVATION_ID);
+        service.checkOut(USER_ID, RESERVATION_ID);
 
-        assertThat(response.status()).isEqualTo(SportsBookingRules.STATUS_COMPLETED);
-        assertThat(response.checkOutAt()).isEqualTo("2026-11-04T09:30:00+08:00");
-        verify(reservationEventMapper).insert(
-                eq(RESERVATION_ID), eq("CHECK_OUT"), eq(USER_ID), eq(NOW), isNull(), isNull());
+        verify(reservationMapper).checkOutIfCheckedIn(RESERVATION_ID, NOW);
+        verify(reservationRepository).insertEvent(
+                eq(RESERVATION_ID), eq("COMPLETED"), eq(USER_ID), eq(NOW), any(), eq("CHECK_OUT"));
     }
 
     @Test
@@ -247,57 +204,32 @@ class SportsReservationServiceTest {
         Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_RESERVED, NOW.minusMinutes(30));
         stubLock(reservation, "BADMINTON");
 
-        assertThatThrownBy(() -> service.checkOut(USER_ID, RESERVATION_ID))
-                .isInstanceOfSatisfying(ApiException.class,
-                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+        assertBusinessError(409, "INVALID_STATE", () -> service.checkOut(USER_ID, RESERVATION_ID));
         verify(reservationMapper, never()).checkOutIfCheckedIn(any(), any());
     }
 
     @Test
-    void repeatedCheckOutReturnsCurrentState() {
+    void repeatedCheckOutIsNoOp() {
         Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_COMPLETED, NOW.minusMinutes(30));
-        reservation.setCheckOutAt(NOW.minusMinutes(1));
         stubLock(reservation, "BADMINTON");
-        when(resourceMapper.findById(RESOURCE_ID)).thenReturn(resource("BADMINTON"));
 
-        ReservationDetailResponse response = service.checkOut(USER_ID, RESERVATION_ID);
+        service.checkOut(USER_ID, RESERVATION_ID);
 
-        assertThat(response.status()).isEqualTo(SportsBookingRules.STATUS_COMPLETED);
         verify(reservationMapper, never()).checkOutIfCheckedIn(any(), any());
-    }
-
-    // ===================== 查询 =====================
-
-    @Test
-    void detailFormatsTimesWithShanghaiOffset() {
-        Reservation reservation = reservation(USER_ID, SportsBookingRules.STATUS_CHECKED_IN, NOW.plusHours(1));
-        reservation.setCheckInAt(NOW);
-        when(reservationMapper.findById(RESERVATION_ID)).thenReturn(reservation);
-        when(resourceMapper.findById(RESOURCE_ID)).thenReturn(resource("BADMINTON"));
-
-        ReservationDetailResponse response = service.get(USER_ID, RESERVATION_ID);
-
-        assertThat(response.reservationId()).isEqualTo("100");
-        assertThat(response.resourceType()).isEqualTo("BADMINTON");
-        assertThat(response.checkInAt()).isEqualTo("2026-11-04T09:30:00+08:00");
-        assertThat(response.checkOutAt()).isNull();
-    }
-
-    @Test
-    void detailHidesOtherUsersReservation() {
-        when(reservationMapper.findById(RESERVATION_ID))
-                .thenReturn(reservation(OTHER_USER_ID, SportsBookingRules.STATUS_RESERVED, NOW.plusHours(1)));
-
-        assertThatThrownBy(() -> service.get(USER_ID, RESERVATION_ID))
-                .isInstanceOfSatisfying(ApiException.class,
-                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESERVATION_NOT_FOUND));
     }
 
     // ===================== 工具方法 =====================
 
+    private void assertBusinessError(int status, String code, Runnable action) {
+        assertThatThrownBy(action::run).isInstanceOfSatisfying(BusinessException.class, exception -> {
+            assertThat(exception.status()).isEqualTo(status);
+            assertThat(exception.code()).isEqualTo(code);
+        });
+    }
+
     private void stubLock(Reservation reservation, String resourceType) {
         when(reservationMapper.findById(RESERVATION_ID)).thenReturn(reservation);
-        when(resourceMapper.findByIdForUpdate(RESOURCE_ID)).thenReturn(resource(resourceType));
+        when(resourceMapper.lockById(RESOURCE_ID)).thenReturn(resource(resourceType));
         when(reservationMapper.findByIdForUpdate(RESERVATION_ID)).thenReturn(reservation);
     }
 
@@ -312,8 +244,8 @@ class SportsReservationServiceTest {
         return reservation;
     }
 
-    private static Resource resource(String resourceType) {
-        Resource resource = new Resource();
+    private static ResourceRecord resource(String resourceType) {
+        ResourceRecord resource = new ResourceRecord();
         resource.setId(RESOURCE_ID);
         resource.setResourceType(resourceType);
         resource.setEnabled(true);
