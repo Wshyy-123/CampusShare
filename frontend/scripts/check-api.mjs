@@ -358,11 +358,14 @@ try {
   const App = (await server.ssrLoadModule("/src/App.vue")).default;
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: navigationPages.map((p) => ({
-      path: p.to,
-      component: p.component,
-      meta: { title: p.label },
-    })),
+    routes: [
+      ...navigationPages.map((p) => ({
+        path: p.to,
+        component: p.component,
+        meta: { title: p.label },
+      })),
+      { path: "/bookings/:id", component: { render: () => null } },
+    ],
   });
   await router.push("/resources");
   await router.isReady();
@@ -370,7 +373,8 @@ try {
     createSSRApp({ render: () => h(App) }).use(router),
   );
   assert.ok(html.includes("接口羽毛球场"));
-  assert.ok(html.includes("后端接口模式"));
+  assert.ok(html.includes("sync-status"));
+  assert.ok(!html.includes("前端交互演示"));
   assert.ok(!html.includes('href="/admin/schedules"'));
   assert.ok(!html.includes('href="/admin/resources"'));
   offlineLogout = true;

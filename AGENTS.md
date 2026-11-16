@@ -41,3 +41,5 @@
 - AI辅助设计、实现、评审及测试在PR/实际AI记录中如实说明，不把AI自查写成人工团队验收；文档更新不等于实现完成。
 
 2026-11-16后续接入：XIA-10/XIA-13现按docs/校享CampusShare_刷卡与教室取消接入说明_2026-11-16.md。CheckInController/Service已改为Session身份、明确预约与座位、CARD_SIMULATION来源及共享事务锁，旧外部userId和座位取消接口已移除，不再用旧开关开启。教室本人RESERVED只在开始前可取消，USER_CANCEL幂等；座位禁止主动取消。LibraryCardPanel挂预约详情，入/离场独立，刷卡离场立即完成释放，超时入场不恢复。14故事核心接入不等于44条标准/真机验收，保持逐项验证，不回退旧实现。
+
+- 2026-11-16本机Taste界面优化：PO要求检索并应用Taste Skill，已按官方指导调整深色界面的层级、配色、字体、图片及响应式。当前改动在本机feature/taste-ui-2026-11-16，尚未提交或推送，不能报成GitHub main已更新。视觉扩展先读《校享CampusShare_Taste界面规范_2026-11-16.md》（仓库内在docs），统一样式入口frontend/src/styles/product.css，保留Vue/API与既有业务规则、数据身份和原插画回退。前端baseline/API/类型与构建通过；真实MySQL5.7与浏览器验证预约/刷卡/教室取消/地点签到及管理弹窗，六种宽度无整页横向溢出。字体与示意图片本地保存，许可在THIRD_PARTY_NOTICES及fonts/Geist-OFL.txt；不是学校实景照片。未执行本轮Java/8.4/真实手机摄像头验收。

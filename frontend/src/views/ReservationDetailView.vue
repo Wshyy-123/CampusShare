@@ -8,6 +8,7 @@ import { useCampus } from "../composables/useCampus";
 import LibraryCardPanel from "../components/LibraryCardPanel.vue";
 import { authState } from "../stores/auth";
 import PlaceCodeDialog from "../components/PlaceCodeDialog.vue";
+import { resourceTypeLabel, stateLabels } from "../utils/presentation";
 import StatusBadge from "../components/StatusBadge.vue";
 
 const SPORTS_TYPES = ["BADMINTON", "TABLE_TENNIS", "TENNIS"];
@@ -122,7 +123,9 @@ onBeforeUnmount(() => {
     <div v-else-if="reservation" class="stack">
       <div class="card panel detail-head">
         <div>
-          <span class="pill">{{ reservation.resourceType }}</span>
+          <span class="pill">{{
+            resourceTypeLabel(reservation.resourceType)
+          }}</span>
           <h2>{{ reservation.resourceName }}</h2>
           <p class="small">
             {{ reservation.location }} · {{ reservation.unitLabel }}
@@ -155,7 +158,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="detail-item">
             <dt>当前状态</dt>
-            <dd>{{ reservation.status }}</dd>
+            <dd>{{ stateLabels[reservation.status] }}</dd>
           </div>
           <div class="detail-item">
             <dt>预约成功时间</dt>
@@ -196,7 +199,7 @@ onBeforeUnmount(() => {
         <h2>{{ isSports ? "体育场地操作" : "教室操作" }}</h2>
         <p class="small">
           使用前可取消；开始后 15
-          分钟内签到；已签到后到预约结束自动完成。操作结果以服务端返回为准。
+          分钟内签到；已签到后到预约结束自动完成。请核对到场与使用时间。
         </p>
         <div style="display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0">
           <button
