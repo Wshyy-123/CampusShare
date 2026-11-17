@@ -1,6 +1,8 @@
 import { reactive } from "vue";
 import { spaces } from "../data/preview";
 import { localDate } from "../utils/presentation";
+import { hasStarted, isBookingDay } from "../utils/bookingTime";
+import { resourceIdentity } from "../utils/resourceIdentity";
 import type {
   CampusService,
   ManagedResource,
@@ -176,6 +178,17 @@ export function createDemoCampusService(
     resourceId: string | null,
     draft: ResourceDraft,
   ): Promise<ManagedResource> {
+    if (
+      managed.some(
+        (item) =>
+          item.id !== resourceId &&
+          resourceIdentity(item) === resourceIdentity(draft),
+      )
+    ) {
+      throw new Error(
+        "同一地点、类型和编号标签的资源已存在，请编辑已有资源或更正编号。",
+      );
+    }
     if (resourceId === null) {
       const created: ManagedResource = { id: String(++nextDemoId), ...draft };
       managed.push(created);
@@ -241,8 +254,18 @@ export function createDemoCampusService(
       return {
         start,
         end: start + 1,
-        available: !space.disabled && !block,
-        reason: space.disabled ? "场地维护中" : (block?.label ?? "可预约"),
+        available:
+          isBookingDay(date) &&
+          !hasStarted(date, start) &&
+          !space.disabled &&
+          !block,
+        reason: !isBookingDay(date)
+          ? "仅限当天预约"
+          : hasStarted(date, start)
+            ? "已过期"
+            : space.disabled
+              ? "场地维护中"
+              : (block?.label ?? "可预约"),
       };
     });
   }
@@ -252,8 +275,8 @@ export function createDemoCampusService(
     date: string,
     start: number,
   ): Promise<boolean> {
-    if (date < localDate()) {
-      notify("请选择今天或之后的日期。");
+    if (!isBookingDay(date)) {
+      notify("当前仅支持当天预约，请选择今天。");
       return false;
     }
     if (!slots(resourceId, date).find((s) => s.start === start)?.available) {

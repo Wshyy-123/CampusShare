@@ -1,8 +1,10 @@
 openapi: 3.0.3
 info:
   title: CampusShare XIA-5 依赖资源读取接口
-  version: 0.1.0
+  version: 0.2.0
   description: |
+    2026-11-17：仅当date为服务端Asia/Shanghai当天时返回可约区间availablePeriods。
+    其他日期仍可返回开放/占用/历史，但availablePeriods为空，不代表该日期允许新建预约。
     这是 XIA-4 正式资源查询/可约接口落地前的临时只读依赖，仅覆盖 XIA-5 预约页面所需的
     资源列表、资源详情和指定日期的开放/占用信息。XIA-4 交付后应替换本文件与实现，避免维护两套契约。
 servers:

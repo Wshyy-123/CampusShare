@@ -1,0 +1,8 @@
+{
+  "database": "H2 MySQL mode",
+  "total": 207,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 3,
+  "note": "The same three MySQL-specific tests executed without skips in MySQL 5.7.26"
+}

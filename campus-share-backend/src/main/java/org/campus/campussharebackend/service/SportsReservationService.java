@@ -58,8 +58,9 @@ public class SportsReservationService {
     public void cancel(long userId, long reservationId) {
         LockedReservation locked = lock(userId, reservationId);
         if (!isSportsResource(locked.resource().getResourceType())
-                && !"CLASSROOM".equals(locked.resource().getResourceType())) {
-            throw new BusinessException(409, "INVALID_STATE", "仅教室和体育预约支持使用前主动取消，座位不可主动取消");
+                && !"CLASSROOM".equals(locked.resource().getResourceType())
+                && !"DISCUSSION_ROOM".equals(locked.resource().getResourceType())) {
+            throw new BusinessException(409, "INVALID_STATE", "仅讨论室、教室和体育预约支持使用前主动取消，座位不可主动取消");
         }
         Reservation reservation = locked.reservation();
 

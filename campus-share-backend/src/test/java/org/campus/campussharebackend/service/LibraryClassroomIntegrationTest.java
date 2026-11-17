@@ -25,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WithMockUser(username = "student01")
 @Import(LibraryClassroomIntegrationTest.TimeConfig.class)
 class LibraryClassroomIntegrationTest extends IntegrationTestBase {
-    static final LocalDateTime NOW = LocalDateTime.of(2026, 11, 16, 10, 0);
+    static final LocalDateTime NOW = LocalDate.now(ZONE).atTime(10, 0);
     @TestConfiguration static class TimeConfig {
         @Bean @Primary @Qualifier("lifecycleClock") Clock libraryClock() {
             return Clock.fixed(NOW.atZone(ZONE).toInstant(), ZONE);

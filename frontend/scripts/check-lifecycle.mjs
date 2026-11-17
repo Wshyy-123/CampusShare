@@ -12,6 +12,7 @@ const server = await createServer({
   define: { "import.meta.env.VITE_DATA_MODE": JSON.stringify("api") },
 });
 const originalFetch = globalThis.fetch;
+const originalNow = Date.now;
 try {
   const { createApiCampusService } = await server.ssrLoadModule("/src/api/campusApi.ts");
   const { dateAfter } = await server.ssrLoadModule("/src/utils/presentation.ts");
@@ -19,6 +20,7 @@ try {
   const resourceId = "9007199254740993";
   const reservationId = "9007199254741991";
   const date = dateAfter(1);
+  Date.now = () => Date.parse(`${date}T08:00:00+08:00`);
   const range = (from, to) => ({ startTime: `${date}T${from}:00:00+08:00`, endTime: `${date}T${to}:00:00+08:00` });
   const period = range("12", "13");
   const resource = { resourceId, resourceType: "LIBRARY_SEAT", name: "接口座位", location: "图书馆", unitLabel: "S1", enabled: true };
@@ -106,6 +108,7 @@ try {
   assert.equal(service.state.bookings.length, 0);
   console.log("PASS: disable POST, shared CSRF, opaque IDs, errors, stale-query refresh, cancellation labels and auth clearing");
 } finally {
+  Date.now = originalNow;
   globalThis.fetch = originalFetch;
   await server.close();
 }

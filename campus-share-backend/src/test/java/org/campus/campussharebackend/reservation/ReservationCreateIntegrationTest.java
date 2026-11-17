@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.campus.campussharebackend.common.BusinessException;
 import org.campus.campussharebackend.reservation.dto.CreateReservationRequest;
 import org.campus.campussharebackend.reservation.service.ReservationService;
-import org.campus.campussharebackend.support.IntegrationTestBase;
+import org.campus.campussharebackend.support.BookingClockTestBase;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -37,7 +37,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MvcResult;
 
 @WithMockUser(username = "student01")
-class ReservationCreateIntegrationTest extends IntegrationTestBase {
+class ReservationCreateIntegrationTest extends BookingClockTestBase {
 
     @Autowired
     private ReservationService reservationService;
@@ -163,7 +163,7 @@ class ReservationCreateIntegrationTest extends IntegrationTestBase {
 
     @Test
     void rejectsTimeOutsideOpening() throws Exception {
-        LocalDateTime start = tomorrowAt(6, 0);
+        LocalDateTime start = tomorrowAt(23, 0);
         mockMvc.perform(post("/api/v1/reservations").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(101, start, start.plusHours(1), "outside-opening-001")))

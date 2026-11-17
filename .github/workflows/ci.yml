@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mysql:
-        image: mysql:8.4
+        image: mysql:5.7.26
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: campusshare_test
@@ -28,7 +28,7 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - name: Backend tests on MySQL 8.4
+      - name: Backend tests on MySQL 5.7.26
         working-directory: campus-share-backend
         run: |
           chmod +x mvnw
@@ -37,17 +37,18 @@ jobs:
             -Dspring.datasource.username=root \
             -Dspring.datasource.password=root \
             -Dspring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
-      - name: Apply numbered migrations on isolated MySQL
-        working-directory: campus-share-backend
-        run: |
-          docker exec ${{ job.services.mysql.id }} mysql -uroot -proot -e "CREATE DATABASE campusshare CHARACTER SET utf8mb4"
-          for migration in docs/datebase/00*.sql; do
-            docker exec -i ${{ job.services.mysql.id }} mysql -uroot -proot --init-command="SET time_zone='+08:00'" < "$migration"
-          done
-          nullable=$(docker exec ${{ job.services.mysql.id }} mysql -uroot -proot -N -e "SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='campusshare' AND TABLE_NAME='reservation' AND COLUMN_NAME='arrival_deadline'")
-          test "$nullable" = "YES"
-          additions=$(docker exec ${{ job.services.mysql.id }} mysql -uroot -proot -N -e "SELECT (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='campusshare' AND TABLE_NAME='resource_opening' AND COLUMN_NAME='note') + (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='campusshare' AND TABLE_NAME='resource_schedule_event')")
-          test "$additions" = "2"
+      - name: Verify MySQL 5.7 exports and historical migrations
+        env:
+          MYSQL_PWD: root
+          MYSQL_COMMAND_JSON: '["docker", "exec", "-i", "-e", "MYSQL_PWD", "${{ job.services.mysql.id }}", "mysql", "--user=root"]'
+        run: python3 scripts/mysql57/verify_exports.py --prefix campusshare_ci --report export-verification.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mysql57-verification
+          path: |
+            export-verification.json
+            campus-share-backend/target/surefire-reports/
 
   frontend:
     runs-on: ubuntu-latest

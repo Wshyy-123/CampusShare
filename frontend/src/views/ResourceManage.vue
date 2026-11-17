@@ -4,7 +4,7 @@ import AppIcon from "../components/common/AppIcon.vue";
 import { notify, useCampus } from "../composables/useCampus";
 import type { ManagedResource, ResourceDraft } from "../services/types";
 
-const { isDemo, loadManagedResources, saveResource } = useCampus();
+const { state, isDemo, loadManagedResources, saveResource } = useCampus();
 const pageSize = 8;
 const keyword = ref("");
 const typeFilter = ref("");
@@ -95,6 +95,7 @@ function openEdit(item: ManagedResource) {
   dialog.value?.showModal();
 }
 async function submit() {
+  if (submitting.value) return;
   formError.value = "";
   if (!form.name.trim() || !form.location.trim() || !form.unitLabel.trim()) {
     formError.value = "请填写资源名称、位置和编号标签。";
@@ -110,7 +111,7 @@ async function submit() {
       enabled: form.enabled,
     });
     if (!saved) {
-      formError.value = "保存未成功，请查看错误提示后重试。";
+      formError.value = state.error || "保存未成功，请查看错误提示后重试。";
       return;
     }
     dialog.value?.close();
@@ -128,6 +129,9 @@ onMounted(refresh);
     <span class="eyebrow">CURATE EVERY SPACE</span>
     <h1>准确维护，<span class="gradient-text">共享资源。</span></h1>
     <p>集中维护资源名称、位置、类型和启用状态，供同学在发现空间页预约。</p>
+    <p class="muted">
+      同一地点、同一类型的编号标签不能重复；已有资源请直接编辑，停用资源也保留其编号。
+    </p>
     <p class="muted">
       停用会取消尚未使用的有效预约并保留历史；存在正在使用的预约时不能停用。重新启用不会恢复已取消预约。有预约历史的资源不能改类型。
     </p>

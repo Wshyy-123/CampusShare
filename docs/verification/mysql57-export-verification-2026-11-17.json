@@ -1,0 +1,58 @@
+{
+  "databases": {
+    "fresh": {
+      "rowCounts": {
+        "app_user": 4,
+        "reservation": 0,
+        "reservation_event": 0,
+        "resource": 14,
+        "resource_block": 101,
+        "resource_catalog_guard": 1,
+        "resource_opening": 98,
+        "resource_schedule_event": 0,
+        "violation_record": 0
+      }
+    },
+    "snapshot": {
+      "rowCounts": {
+        "app_user": 4,
+        "reservation": 19,
+        "reservation_event": 31,
+        "resource": 15,
+        "resource_block": 101,
+        "resource_catalog_guard": 1,
+        "resource_opening": 99,
+        "resource_schedule_event": 141,
+        "violation_record": 6
+      }
+    },
+    "legacy": {
+      "rowCounts": {
+        "app_user": 4,
+        "reservation": 8,
+        "reservation_event": 4,
+        "resource": 7,
+        "resource_block": 2,
+        "resource_catalog_guard": 1,
+        "resource_opening": 49,
+        "resource_schedule_event": 0,
+        "violation_record": 1
+      }
+    }
+  },
+  "checks": [
+    "LF checksums",
+    "fresh import",
+    "full snapshot row counts",
+    "all tables InnoDB",
+    "foreign-key integrity",
+    "clean demo identity uniqueness",
+    "7 classrooms and rolling 7-day schedules",
+    "no stale bookings in fresh mode",
+    "001-008 legacy compatibility",
+    "final schema matches historical migrations"
+  ],
+  "serverVersion": "5.7.26",
+  "status": "passed",
+  "isolatedDatabasesCleaned": 3
+}

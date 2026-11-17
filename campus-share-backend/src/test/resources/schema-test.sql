@@ -1,4 +1,4 @@
--- 隔离测试夹具：H2(MySQL 模式) 与 MySQL 8.4 均可执行。
+-- 隔离测试夹具：H2(MySQL 模式) 与 MySQL 5.7.26 均可执行。
 -- 不创建/切换数据库，避免影响共享库；测试库由 CI 或本地环境准备。
 DROP TABLE IF EXISTS resource_schedule_event;
 DROP TABLE IF EXISTS violation_record;
@@ -7,6 +7,7 @@ DROP TABLE IF EXISTS reservation;
 DROP TABLE IF EXISTS resource_block;
 DROP TABLE IF EXISTS resource_opening;
 DROP TABLE IF EXISTS resource;
+DROP TABLE IF EXISTS resource_catalog_guard;
 DROP TABLE IF EXISTS app_user;
 
 CREATE TABLE app_user (
@@ -16,7 +17,7 @@ CREATE TABLE app_user (
     display_name VARCHAR(50) NOT NULL,
     role VARCHAR(32) NOT NULL,
     enabled BOOLEAN NOT NULL DEFAULT TRUE
-);
+) ENGINE=InnoDB;
 
 CREATE TABLE resource (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -25,46 +26,49 @@ CREATE TABLE resource (
     resource_type VARCHAR(32) NOT NULL,
     unit_label VARCHAR(50) NOT NULL,
     enabled BOOLEAN NOT NULL DEFAULT TRUE
-);
+) ENGINE=InnoDB;
+
+CREATE TABLE resource_catalog_guard (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO resource_catalog_guard(id) VALUES (1);
 
 CREATE TABLE resource_opening (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     resource_id BIGINT NOT NULL,
-    start_at TIMESTAMP(3) NOT NULL,
-    end_at TIMESTAMP(3) NOT NULL,
+    start_at DATETIME(3) NOT NULL,
+    end_at DATETIME(3) NOT NULL,
     note VARCHAR(200) NULL,
     CONSTRAINT fk_test_opening_resource FOREIGN KEY (resource_id) REFERENCES resource (id)
-);
+) ENGINE=InnoDB;
 
 CREATE TABLE resource_block (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     resource_id BIGINT NOT NULL,
     block_type VARCHAR(32) NOT NULL,
-    start_at TIMESTAMP(3) NOT NULL,
-    end_at TIMESTAMP(3) NOT NULL,
+    start_at DATETIME(3) NOT NULL,
+    end_at DATETIME(3) NOT NULL,
     reason VARCHAR(500) NOT NULL,
     CONSTRAINT fk_test_block_resource FOREIGN KEY (resource_id) REFERENCES resource (id)
-);
+) ENGINE=InnoDB;
 
 CREATE TABLE reservation (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
     resource_id BIGINT NOT NULL,
     client_request_id VARCHAR(100) NOT NULL,
-    start_at TIMESTAMP(3) NOT NULL,
-    end_at TIMESTAMP(3) NOT NULL,
-    accepted_at TIMESTAMP(3) NOT NULL,
-    arrival_deadline TIMESTAMP(3) NULL,
+    start_at DATETIME(3) NOT NULL,
+    end_at DATETIME(3) NOT NULL,
+    accepted_at DATETIME(3) NOT NULL,
+    arrival_deadline DATETIME(3) NULL,
     status VARCHAR(32) NOT NULL,
     cancel_reason VARCHAR(32),
-    check_in_at TIMESTAMP(3),
-    check_out_at TIMESTAMP(3),
-    created_at TIMESTAMP(3) NOT NULL,
-    updated_at TIMESTAMP(3) NOT NULL,
+    check_in_at DATETIME(3),
+    check_out_at DATETIME(3),
+    created_at DATETIME(3) NOT NULL,
+    updated_at DATETIME(3) NOT NULL,
     CONSTRAINT uq_test_reservation_request UNIQUE (user_id, client_request_id),
     CONSTRAINT fk_test_reservation_user FOREIGN KEY (user_id) REFERENCES app_user (id),
     CONSTRAINT fk_test_reservation_resource FOREIGN KEY (resource_id) REFERENCES resource (id)
-);
+) ENGINE=InnoDB;
 
 CREATE INDEX ix_test_reservation_resource_time ON reservation (resource_id, start_at, end_at);
 CREATE INDEX ix_test_reservation_user_time ON reservation (user_id, start_at);
@@ -74,23 +78,23 @@ CREATE TABLE reservation_event (
     reservation_id BIGINT NOT NULL,
     event_type VARCHAR(32) NOT NULL,
     operator_id BIGINT,
-    occurred_at TIMESTAMP(3) NOT NULL,
+    occurred_at DATETIME(3) NOT NULL,
     request_id VARCHAR(64) NOT NULL,
     reason VARCHAR(500) NOT NULL,
     CONSTRAINT fk_test_event_reservation FOREIGN KEY (reservation_id) REFERENCES reservation (id),
     CONSTRAINT fk_test_event_operator FOREIGN KEY (operator_id) REFERENCES app_user (id)
-);
+) ENGINE=InnoDB;
 
 CREATE TABLE violation_record (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     reservation_id BIGINT NOT NULL,
     user_id BIGINT NOT NULL,
     violation_type VARCHAR(32) NOT NULL,
-    occurred_at TIMESTAMP(3) NOT NULL,
+    occurred_at DATETIME(3) NOT NULL,
     CONSTRAINT uq_test_violation UNIQUE (reservation_id, violation_type),
     CONSTRAINT fk_test_violation_reservation FOREIGN KEY (reservation_id) REFERENCES reservation (id),
     CONSTRAINT fk_test_violation_user FOREIGN KEY (user_id) REFERENCES app_user (id)
-);
+) ENGINE=InnoDB;
 
 CREATE TABLE resource_schedule_event (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -105,4 +109,4 @@ CREATE TABLE resource_schedule_event (
     after_json LONGTEXT NULL,
     CONSTRAINT fk_schedule_event_resource FOREIGN KEY(resource_id) REFERENCES resource(id),
     CONSTRAINT fk_schedule_event_operator FOREIGN KEY(operator_id) REFERENCES app_user(id)
-);
+) ENGINE=InnoDB;

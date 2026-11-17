@@ -27,10 +27,12 @@ const server = await createServer({
   ],
 });
 const originalFetch = globalThis.fetch;
+const originalNow = Date.now;
 try {
   const { localDate, dateAfter } = await server.ssrLoadModule(
     "/src/utils/presentation.ts",
   );
+  Date.now = () => Date.parse(`${localDate()}T08:00:00+08:00`);
   const { safeReturnPath } = await server.ssrLoadModule(
     "/src/utils/navigation.ts",
   );
@@ -273,25 +275,52 @@ try {
     undefined,
   );
   assert.equal(campus.state.bookings[0].id, "9007199254741990");
-  await campus.loadAvailability(largeId, dateAfter(1));
+  await campus.loadAvailability(largeId, localDate());
   assert.equal(
-    campus.slots(largeId, dateAfter(1)).find((s) => s.start === 10).available,
+    campus.slots(largeId, localDate()).find((s) => s.start === 10).available,
     false,
   );
   assert.equal(
-    campus.slots(largeId, dateAfter(1)).find((s) => s.start === 12).available,
+    campus.slots(largeId, localDate()).find((s) => s.start === 12).available,
     true,
   );
+  const slotDate = localDate();
+  const realNow = Date.now;
+  try {
+    Date.now = () => Date.parse(`${slotDate}T12:30:00+08:00`);
+    assert.equal(
+      campus.slots(largeId, slotDate).find((s) => s.start === 12).available,
+      false,
+      "cached interval expires with wall clock",
+    );
+    assert.equal(
+      await campus.reserve(largeId, slotDate, 12),
+      false,
+      "expired cached slot cannot submit",
+    );
+  } finally {
+    Date.now = realNow;
+  }
   console.log(
     "PASS: real-mode DTO mapping, opaque BIGINT IDs, disabled history resources and server free periods",
   );
+  await campus.loadAvailability(largeId, dateAfter(1));
+  assert.ok(
+    campus.slots(largeId, dateAfter(1)).every((slot) => !slot.available),
+    "future day unavailable even with stale/mock free intervals",
+  );
+  assert.equal(
+    await campus.reserve(largeId, dateAfter(1), 12),
+    false,
+    "future day cannot post",
+  );
   dropNext = true;
-  assert.equal(await campus.reserve(largeId, dateAfter(1), 12), false);
-  assert.equal(await campus.reserve(largeId, dateAfter(1), 12), true);
+  assert.equal(await campus.reserve(largeId, localDate(), 12), false);
+  assert.equal(await campus.reserve(largeId, localDate(), 12), true);
   assert.equal(postBodies[0].clientRequestId, postBodies[1].clientRequestId);
   assert.equal(requests.size, 1);
   rejectCsrf = true;
-  assert.equal(await campus.reserve(largeId, dateAfter(1), 13), true);
+  assert.equal(await campus.reserve(largeId, localDate(), 13), true);
   assert.equal(
     postBodies.at(-1).clientRequestId,
     postBodies.at(-2).clientRequestId,
@@ -407,6 +436,7 @@ try {
     "PASS: protected menu rendering, safe return paths, logout failure, stale-response isolation and 401 data clearing",
   );
 } finally {
+  Date.now = originalNow;
   globalThis.fetch = originalFetch;
   await server.close();
 }

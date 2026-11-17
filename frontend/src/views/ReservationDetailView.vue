@@ -5,6 +5,7 @@ import { errorMessage } from "../api/http";
 import { reservationsApi } from "../api/reservations";
 import type { Reservation } from "../types/api";
 import { useCampus } from "../composables/useCampus";
+import { useCurrentTime } from "../composables/useCurrentTime";
 import LibraryCardPanel from "../components/LibraryCardPanel.vue";
 import { authState } from "../stores/auth";
 import PlaceCodeDialog from "../components/PlaceCodeDialog.vue";
@@ -15,6 +16,7 @@ const SPORTS_TYPES = ["BADMINTON", "TABLE_TENNIS", "TENNIS"];
 
 const route = useRoute();
 const campus = useCampus();
+const now = useCurrentTime();
 const placeCode = ref<InstanceType<typeof PlaceCodeDialog> | null>(null);
 const reservation = ref<Reservation | null>(null);
 const loading = ref(true);
@@ -30,10 +32,14 @@ const isSports = computed(
 );
 const canCancel = computed(() => {
   const current = reservation.value;
-  if (!current || (!isSports.value && current.resourceType !== "CLASSROOM"))
+  if (
+    !current ||
+    (!isSports.value &&
+      !["CLASSROOM", "DISCUSSION_ROOM"].includes(current.resourceType))
+  )
     return false;
   return (
-    current.status === "RESERVED" && Date.parse(current.startTime) > Date.now()
+    current.status === "RESERVED" && Date.parse(current.startTime) > now.value
   );
 });
 let generation = 0;
@@ -193,11 +199,25 @@ onBeforeUnmount(() => {
         @updated="reservation = $event"
       />
       <div
-        v-if="isSports || reservation.resourceType === 'CLASSROOM'"
+        v-if="
+          isSports ||
+          ['CLASSROOM', 'DISCUSSION_ROOM'].includes(reservation.resourceType)
+        "
         class="card panel"
       >
-        <h2>{{ isSports ? "体育场地操作" : "教室操作" }}</h2>
-        <p class="small">
+        <h2>
+          {{
+            isSports
+              ? "体育场地操作"
+              : reservation.resourceType === "DISCUSSION_ROOM"
+                ? "讨论室操作"
+                : "教室操作"
+          }}
+        </h2>
+        <p v-if="reservation.resourceType === 'DISCUSSION_ROOM'" class="small">
+          预约开始前可取消，取消后立即释放时段并保留记录。开始后不可主动取消。
+        </p>
+        <p v-else class="small">
           使用前可取消；开始后 15
           分钟内签到；已签到后到预约结束自动完成。请核对到场与使用时间。
         </p>
@@ -211,6 +231,7 @@ onBeforeUnmount(() => {
             使用前取消
           </button>
           <button
+            v-if="reservation.resourceType !== 'DISCUSSION_ROOM'"
             class="button secondary"
             @click="
               placeCode?.open(
@@ -222,7 +243,10 @@ onBeforeUnmount(() => {
           >
             查看地点二维码
           </button>
-          <p class="small">
+          <p
+            v-if="reservation.resourceType !== 'DISCUSSION_ROOM'"
+            class="small"
+          >
             到场后使用手机扫描现场地点码签到。体育预约结束后可再次扫描并选择记录签退。
           </p>
         </div>

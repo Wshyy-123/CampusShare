@@ -143,45 +143,6 @@ textarea {
   background: #3b4b35;
   color: #d5e9bf;
 }
-.sidebar-guide {
-  margin: 44px 4px 24px;
-  border: 0;
-  border-top: 1px solid var(--border);
-  border-radius: 0;
-  background: transparent;
-  padding: 25px 8px 20px;
-}
-.guide-symbol {
-  color: var(--accent);
-  background: none;
-  margin-bottom: 18px;
-  width: auto;
-  height: auto;
-  justify-content: flex-start;
-}
-.guide-label {
-  display: block;
-  color: #8fa48d;
-  font-size: 11px;
-}
-.sidebar-guide h3 {
-  font-size: 19px;
-  font-weight: 550;
-  line-height: 1.6;
-  margin: 10px 0;
-  letter-spacing: -0.5px;
-}
-.sidebar-guide p {
-  color: #96a499;
-  font-size: 12px;
-  line-height: 1.9;
-}
-.sidebar-guide > a {
-  color: #d1e4bd;
-  margin-top: 20px;
-  font-size: 12px;
-  gap: 14px;
-}
 .scope-link {
   color: #a9b4ab;
   border-color: #303a32;
@@ -1392,7 +1353,6 @@ table td {
     padding: 0;
   }
   .workspace-label,
-  .sidebar-guide,
   .sidebar-footer,
   .scope-link {
     display: none;

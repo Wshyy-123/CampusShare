@@ -9,19 +9,41 @@ import {
   localDate,
   formatHour,
   rules,
-  dateAfter,
   formatDateTime,
 } from "../utils/presentation";
 import { useCampus } from "../composables/useCampus";
+import { useCurrentTime } from "../composables/useCurrentTime";
+import { hasStarted, isBookingDay } from "../utils/bookingTime";
 import type { Space, SpaceKind } from "../types/campus";
 
 const router = useRouter();
-const { state, isDemo, slots, blocks, reserve, loadAvailability } = useCampus();
+const {
+  state,
+  isDemo,
+  slots: campusSlots,
+  blocks,
+  reserve,
+  loadAvailability,
+} = useCampus();
+const now = useCurrentTime();
+const today = computed(() => localDate(new Date(now.value)));
+function slots(resourceId: string, day: string) {
+  return campusSlots(resourceId, day).map((slot) =>
+    !isBookingDay(day, now.value)
+      ? { ...slot, available: false, reason: "仅限当天预约" }
+      : hasStarted(day, slot.start, now.value)
+        ? { ...slot, available: false, reason: "已过期" }
+        : slot,
+  );
+}
 const spaces = computed(() => state.resources);
 const submitting = ref(false);
 const selectedKind = ref<SpaceKind | "ALL">("ALL");
 const keyword = ref("");
 const date = ref(localDate());
+watch(today, (value) => {
+  date.value = value;
+});
 const onlyAvailable = ref(false);
 const selectedSpace = ref<Space | null>(null);
 const chosenHour = ref<number | null>(null);
@@ -83,6 +105,11 @@ const filtered = computed(() =>
 const selectedSlots = computed(() =>
   selectedSpace.value ? slots(selectedSpace.value.id, date.value) : [],
 );
+const chosenSlotAvailable = computed(() =>
+  selectedSlots.value.some(
+    (slot) => slot.start === chosenHour.value && slot.available,
+  ),
+);
 const detailBlocks = computed(() =>
   selectedSpace.value ? blocks(selectedSpace.value.id, date.value) : [],
 );
@@ -110,8 +137,6 @@ function scrollToSpaces() {
   });
 }
 async function openDetail(space: Space) {
-  if (space.kind === "DISCUSSION_ROOM" && date.value <= localDate())
-    date.value = dateAfter(1);
   if (!(await loadAvailability(space.id, date.value))) return;
   selectedSpace.value = space;
   chosenHour.value = null;
@@ -131,8 +156,6 @@ async function makeReservation() {
 }
 function freeLabel(space: Space) {
   if (space.disabled) return "维护中";
-  if (space.kind === "DISCUSSION_ROOM" && date.value <= localDate())
-    return "需提前一天预约";
   const free = slots(space.id, date.value).filter((s) => s.available).length;
   return free ? `${free} 个可约时段` : "当日暂无可约时段";
 }
@@ -221,7 +244,8 @@ function freeLabel(space: Space) {
         ><input
           v-model="date"
           type="date"
-          :min="localDate()"
+          :min="today"
+          :max="today"
           aria-label="查看日期"
       /></label>
     </div>
@@ -352,7 +376,7 @@ function freeLabel(space: Space) {
   <div class="bottom-tip">
     <AppIcon name="info" :size="16" />
     <p>
-      提前查看占用安排，让每一次出发都不扑空。<span>
+      当前仅支持当天预约，请选择今天尚未开始的空闲时段。<span>
         {{
           isDemo
             ? "当前资源与占用均为演示样例。"
@@ -406,7 +430,8 @@ function freeLabel(space: Space) {
           v-model="date"
           class="input"
           type="date"
-          :min="localDate()"
+          :min="today"
+          :max="today"
         /><span class="muted"
           >{{
             selectedSpace.close > selectedSpace.open ? "开放" : "当日未开放"
@@ -529,7 +554,7 @@ function freeLabel(space: Space) {
         }}</span
         ><button
           class="button primary"
-          :disabled="chosenHour === null || submitting || !state.ready"
+          :disabled="!chosenSlotAvailable || submitting || !state.ready"
           @click="makeReservation"
         >
           {{ submitting ? "提交中…" : isDemo ? "模拟预约" : "提交预约" }}

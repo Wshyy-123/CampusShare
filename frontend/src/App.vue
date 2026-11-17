@@ -55,15 +55,6 @@ async function signOut() {
           }}</span></RouterLink
         >
       </nav>
-      <div class="sidebar-guide">
-        <span class="guide-symbol"><AppIcon name="calendar" :size="22" /></span>
-        <span class="guide-label">安排好下一段时间</span>
-        <h3>有计划地出发，<br />有地方可去。</h3>
-        <p>预约后记得按时到场，<br />让好空间被好好使用。</p>
-        <RouterLink to="/bookings"
-          >查看我的预约 <AppIcon name="arrow" :size="16"
-        /></RouterLink>
-      </div>
       <button class="scope-link" @click="scopeDialog?.showModal()">
         <AppIcon name="info" :size="17" /> 使用说明
         <AppIcon name="chevron" :size="15" />
@@ -212,7 +203,7 @@ async function signOut() {
         <div>
           <strong>讨论室</strong>
           <p>
-            按整间预约，最晚在使用日期前一自然日提交。教学、外部占用与停用安排不能预约。
+            所有场地仅支持当天尚未开始的时段。讨论室按整间预约，开始前可取消。教学、外部占用与停用安排不能预约。
           </p>
         </div>
       </div>

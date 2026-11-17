@@ -1,0 +1,40 @@
+{
+  "mysqlVersion": "5.7.26",
+  "snapshotDate": "2026-11-17",
+  "snapshotContainsOnlyDemoAccounts": true,
+  "snapshotRowCounts": {
+    "app_user": 4,
+    "reservation": 19,
+    "reservation_event": 31,
+    "resource": 15,
+    "resource_block": 101,
+    "resource_catalog_guard": 1,
+    "resource_opening": 99,
+    "resource_schedule_event": 141,
+    "violation_record": 6
+  },
+  "cleanDemo": {
+    "accounts": 4,
+    "resources": 14,
+    "classrooms": 7,
+    "openings": 98,
+    "blocksByType": {
+      "TEACHING": 99,
+      "EXTERNAL": 1,
+      "DISABLED": 1
+    },
+    "reservations": 0,
+    "duplicatesRemovedOnlyFromCleanDemo": [
+      {
+        "omittedId": "503",
+        "canonicalId": "1"
+      }
+    ],
+    "datePolicy": "relative to import day; 7 days of administrative schedules; booking today only"
+  },
+  "sha256Lf": {
+    "001_schema.sql": "8f739de08ca0257fbb9eec6bb6423f97b74169b2a9536ca773c414b8a7498264",
+    "002_demo_data.sql": "5981638265a0906b328625b5c1ec7556ce53dd99225f737f2b66def859100502",
+    "snapshot_2026-11-17.sql": "eed5b5f845ef5a2d202f2b5f53018cdea86dba5d2f4b8fab5374aea94366f8f7"
+  }
+}

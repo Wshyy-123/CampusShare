@@ -12,6 +12,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface ResourceMapper {
 
+    Integer lockCatalog();
+
+    List<ResourceRecord> lockIdentityCandidates();
+
     List<ResourceRecord> list(@Param("resourceType") String resourceType,
                               @Param("location") String location);
 
