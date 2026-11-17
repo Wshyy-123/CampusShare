@@ -48,3 +48,9 @@ GitHub工作流已切换`mysql:5.7.26`，并纳入两套数据和历史迁移验
 ## 未覆盖项
 
 未执行本批次物理手机摄像头、学校真实教务/刷卡设备或教师44条验收标准的逐条人工验收；本项目数据和账号均为课程演示。座位仍采用预约成功后30分钟确认到馆，本次没有改为使用开始后30分钟。
+
+## 首轮GitHub检查与修正
+
+PR #15首轮远端检查：前端和独立生命周期通过，主后端在初始化中文演示账号时因Docker MySQL5.7默认latin1报Incorrect string value。测试尚未进入业务断言，不能把此轮记为207项通过。后续修正为测试表显式utf8mb4，并在CI开始前设置隔离测试库的utf8mb4/Unicode排序规则，保留全部测试与原断言后重新运行。
+
+修正后本机将本批次专用隔离库默认值改为latin1复现容器条件，MySQL5.7.26全量207项0失败/错误/跳过；H2 AuthIntegrationTest 6项0失败/错误/跳过，验证同一DDL的兼容性。凭证：工作区`.artifacts/publish_mysql57_2026-11-17/mysql57-latin1-regression.log`及`charset-h2-check.log`。远端修正后的结果另以PR #15和Actions记录为准。

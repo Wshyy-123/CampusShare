@@ -17,7 +17,7 @@ CREATE TABLE app_user (
     display_name VARCHAR(50) NOT NULL,
     role VARCHAR(32) NOT NULL,
     enabled BOOLEAN NOT NULL DEFAULT TRUE
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE resource (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -26,9 +26,9 @@ CREATE TABLE resource (
     resource_type VARCHAR(32) NOT NULL,
     unit_label VARCHAR(50) NOT NULL,
     enabled BOOLEAN NOT NULL DEFAULT TRUE
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE resource_catalog_guard (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE resource_catalog_guard (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO resource_catalog_guard(id) VALUES (1);
 
 CREATE TABLE resource_opening (
@@ -38,7 +38,7 @@ CREATE TABLE resource_opening (
     end_at DATETIME(3) NOT NULL,
     note VARCHAR(200) NULL,
     CONSTRAINT fk_test_opening_resource FOREIGN KEY (resource_id) REFERENCES resource (id)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE resource_block (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -48,7 +48,7 @@ CREATE TABLE resource_block (
     end_at DATETIME(3) NOT NULL,
     reason VARCHAR(500) NOT NULL,
     CONSTRAINT fk_test_block_resource FOREIGN KEY (resource_id) REFERENCES resource (id)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE reservation (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -68,7 +68,7 @@ CREATE TABLE reservation (
     CONSTRAINT uq_test_reservation_request UNIQUE (user_id, client_request_id),
     CONSTRAINT fk_test_reservation_user FOREIGN KEY (user_id) REFERENCES app_user (id),
     CONSTRAINT fk_test_reservation_resource FOREIGN KEY (resource_id) REFERENCES resource (id)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE INDEX ix_test_reservation_resource_time ON reservation (resource_id, start_at, end_at);
 CREATE INDEX ix_test_reservation_user_time ON reservation (user_id, start_at);
@@ -83,7 +83,7 @@ CREATE TABLE reservation_event (
     reason VARCHAR(500) NOT NULL,
     CONSTRAINT fk_test_event_reservation FOREIGN KEY (reservation_id) REFERENCES reservation (id),
     CONSTRAINT fk_test_event_operator FOREIGN KEY (operator_id) REFERENCES app_user (id)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE violation_record (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -94,7 +94,7 @@ CREATE TABLE violation_record (
     CONSTRAINT uq_test_violation UNIQUE (reservation_id, violation_type),
     CONSTRAINT fk_test_violation_reservation FOREIGN KEY (reservation_id) REFERENCES reservation (id),
     CONSTRAINT fk_test_violation_user FOREIGN KEY (user_id) REFERENCES app_user (id)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE resource_schedule_event (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -109,4 +109,4 @@ CREATE TABLE resource_schedule_event (
     after_json LONGTEXT NULL,
     CONSTRAINT fk_schedule_event_resource FOREIGN KEY(resource_id) REFERENCES resource(id),
     CONSTRAINT fk_schedule_event_operator FOREIGN KEY(operator_id) REFERENCES app_user(id)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
