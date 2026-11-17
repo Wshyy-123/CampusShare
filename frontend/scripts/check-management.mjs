@@ -8,6 +8,7 @@ const server = await createServer({
   appType: "custom",
 });
 const originalFetch = globalThis.fetch;
+const originalNow = Date.now;
 try {
   const { createApiCampusService } = await server.ssrLoadModule(
     "/src/api/campusApi.ts",
@@ -22,6 +23,7 @@ try {
     enabled: true,
   };
   const day = "2030-01-02";
+  Date.now = () => Date.parse(`${day}T08:00:00+08:00`);
   const range = {
     startTime: `${day}T09:00:00+08:00`,
     endTime: `${day}T10:00:00+08:00`,
@@ -132,6 +134,7 @@ try {
     "PASS: typed schedule deletion, same-ID read models, mutation availability refresh and stale account response isolation",
   );
 } finally {
+  Date.now = originalNow;
   globalThis.fetch = originalFetch;
   await server.close();
 }

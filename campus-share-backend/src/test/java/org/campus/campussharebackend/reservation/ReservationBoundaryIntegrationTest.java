@@ -10,13 +10,13 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Map;
 import org.campus.campussharebackend.common.TimeFormats;
-import org.campus.campussharebackend.support.IntegrationTestBase;
+import org.campus.campussharebackend.support.BookingClockTestBase;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 
 @WithMockUser(username = "student01")
-class ReservationBoundaryIntegrationTest extends IntegrationTestBase {
+class ReservationBoundaryIntegrationTest extends BookingClockTestBase {
     @Test
     void adjacentOpeningsAllowTheSameRangeShownAsAvailable() throws Exception {
         jdbcTemplate.update("DELETE FROM resource_opening WHERE resource_id=101");
@@ -32,15 +32,16 @@ class ReservationBoundaryIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    void discussionRoomRequiresPreviousCalendarDayAndHasNoSportsDeadline() throws Exception {
+    void discussionRoomAllowsSameDayAndHasNoSportsDeadline() throws Exception {
         jdbcTemplate.update("UPDATE resource SET resource_type='DISCUSSION_ROOM' WHERE id=401");
         try {
-            LocalDateTime sameDay = LocalDate.now(ZONE).atTime(21, 0);
+            LocalDateTime sameDay = TimeFormats.now(bookingClock).plusMinutes(5);
+            jdbcTemplate.update("INSERT INTO resource_opening(resource_id,start_at,end_at) VALUES(401,?,?)", sameDay, sameDay.plusMinutes(30));
             create(401, sameDay, sameDay.plusMinutes(30), "room-today")
-                    .andExpect(status().isBadRequest());
-            LocalDateTime tomorrow = tomorrowAt(8, 0);
-            create(401, tomorrow, tomorrow.plusHours(1), "room-tomorrow")
                     .andExpect(status().isCreated()).andExpect(jsonPath("$.data.arrivalDeadline").isEmpty());
+            LocalDateTime tomorrow = TimeFormats.now(bookingClock).plusDays(1);
+            create(401, tomorrow, tomorrow.plusHours(1), "room-tomorrow")
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("SAME_DAY_ONLY"));
         } finally {
             jdbcTemplate.update("UPDATE resource SET resource_type='TENNIS' WHERE id=401");
         }

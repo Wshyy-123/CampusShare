@@ -42,8 +42,8 @@ export function formatDateTime(iso: string): string {
 
 export const rules = {
   DISCUSSION_ROOM: [
-    "按整间讨论室预约，最晚在使用日期前一自然日提交。",
-    "当天不能预约当天；不套用座位30分钟或教室/体育15分钟签到规则。",
+    "按整间讨论室预约，仅可预约当天尚未开始的开放时段。",
+    "开始前可主动取消并立即释放；不套用座位30分钟或教室/体育15分钟签到规则。",
   ],
   LIBRARY_SEAT: [
     "预约成功起 30 分钟内模拟刷卡入场。",

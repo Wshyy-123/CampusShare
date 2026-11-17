@@ -89,8 +89,9 @@ public class ReservationService {
         if (start.isBefore(now)) {
             throw new BusinessException(400, "INVALID_ARGUMENT", "不能预约已经开始的时段");
         }
-        if ("DISCUSSION_ROOM".equals(resource.getResourceType()) && !start.toLocalDate().isAfter(now.toLocalDate())) {
-            throw new BusinessException(400, "INVALID_ARGUMENT", "讨论室须最晚在使用日期前一自然日预约");
+        if (!start.toLocalDate().equals(now.toLocalDate())
+                || end.isAfter(now.toLocalDate().plusDays(1).atStartOfDay())) {
+            throw new BusinessException(400, "SAME_DAY_ONLY", "当前仅支持当天预约，不支持提前或跨天预约");
         }
         if (!resource.isEnabled()) {
             throw new BusinessException(409, "RESOURCE_UNAVAILABLE", "资源已停用");

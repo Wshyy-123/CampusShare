@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref } from "vue";
+import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { errorMessage, HttpError } from "../api/http";
 import { reservationsApi } from "../api/reservations";
 import { resourcesApi } from "../api/resources";
 import type { Availability, Reservation } from "../types/api";
 import StatusBadge from "../components/StatusBadge.vue";
-import { dateAfter, localDate } from "../utils/presentation";
+import { localDate } from "../utils/presentation";
+import { useCurrentTime } from "../composables/useCurrentTime";
 import { useCampus } from "../composables/useCampus";
 const campus = useCampus();
 let loadSequence = 0;
@@ -19,13 +20,42 @@ const resourceId = String(route.params.id);
 const availability = ref<Availability | null>(null);
 const loading = ref(true);
 const loadError = ref("");
-const date = ref(dateAfter(1));
+const date = ref(localDate());
 const startTime = ref("09:00");
 const endTime = ref("10:00");
 const submitting = ref(false);
 const submitError = ref("");
 const created = ref<Reservation | null>(null);
-const today = localDate();
+const now = useCurrentTime();
+const today = computed(() => localDate(new Date(now.value)));
+watch(today, (value) => {
+  date.value = value;
+  onDateChange();
+});
+const minimumStart = computed(() =>
+  date.value === today.value
+    ? new Date(Math.ceil(now.value / 60_000) * 60_000).toLocaleTimeString(
+        "en-GB",
+        { timeZone: "Asia/Shanghai", hour: "2-digit", minute: "2-digit" },
+      )
+    : undefined,
+);
+const futurePeriods = computed(() =>
+  (date.value === today.value
+    ? (availability.value?.availablePeriods ?? [])
+    : []
+  )
+    .map((slot) => ({
+      ...slot,
+      startTime:
+        Date.parse(slot.startTime) < now.value
+          ? new Date(Math.ceil(now.value / 60_000) * 60_000 + 8 * 3_600_000)
+              .toISOString()
+              .slice(0, 19) + "+08:00"
+          : slot.startTime,
+    }))
+    .filter((slot) => Date.parse(slot.startTime) < Date.parse(slot.endTime)),
+);
 
 let lastRequestKey = "";
 let clientRequestId = "";
@@ -40,13 +70,9 @@ const localIssue = computed(() => {
   if (!availability.value) return "";
   if (!date.value || !startTime.value || !endTime.value)
     return "请选择日期和完整的起止时间";
+  if (date.value !== today.value) return "当前仅支持当天预约，请选择今天";
   if (!availability.value.resource.enabled) return "资源已停用";
-  if (
-    availability.value.resource.resourceType === "DISCUSSION_ROOM" &&
-    date.value <= today
-  )
-    return "讨论室需提前一自然日预约";
-  if (Date.parse(selectedStart.value) < Date.now())
+  if (Date.parse(selectedStart.value) < now.value)
     return "不能预约已经开始的时段";
   if (startTime.value >= endTime.value) return "结束时间必须晚于开始时间";
   const block = availability.value.blocks.find((item) =>
@@ -118,6 +144,14 @@ function ensureRequestId(): string {
 async function submit() {
   if (!availability.value || loading.value) {
     submitError.value = "请先加载可用时段";
+    return;
+  }
+  if (date.value !== localDate()) {
+    submitError.value = "当前仅支持当天预约，请选择今天";
+    return;
+  }
+  if (Date.parse(selectedStart.value) < Date.now()) {
+    submitError.value = "不能预约已经开始的时段，请重新选择时间";
     return;
   }
   if (localIssue.value) {
@@ -240,6 +274,7 @@ onMounted(loadAvailability);
           class="input"
           type="date"
           :min="today"
+          :max="today"
           @change="onDateChange" /></label
       ><button
         class="button secondary"
@@ -258,7 +293,7 @@ onMounted(loadAvailability);
           <div>
             <h2>选择日期与时段</h2>
             <p class="small">
-              请选择开放时间内的时段，并避开课程与已有预约。
+              仅可预约今天尚未开始的开放时段，请避开课程与已有预约。
             </p>
           </div>
 
@@ -269,12 +304,13 @@ onMounted(loadAvailability);
                 v-model="startTime"
                 class="input"
                 type="time"
-                step="1800"
+                :min="minimumStart"
+                step="60"
               />
             </label>
             <label class="field">
               <span>结束时间</span>
-              <input v-model="endTime" class="input" type="time" step="1800" />
+              <input v-model="endTime" class="input" type="time" step="60" />
             </label>
           </div>
 
@@ -301,6 +337,23 @@ onMounted(loadAvailability);
         <div class="card panel">
           <h2>当天安排</h2>
           <div v-if="availability" class="stack">
+            <div>
+              <p class="section-label">可预约时段</p>
+              <div v-if="futurePeriods.length" class="availability-list">
+                <div
+                  v-for="slot in futurePeriods"
+                  :key="slot.startTime"
+                  class="availability-row"
+                >
+                  <span>可预约</span>
+                  <strong
+                    >{{ timeLabel(slot.startTime) }} –
+                    {{ timeLabel(slot.endTime) }}</strong
+                  >
+                </div>
+              </div>
+              <p v-else class="small">当天暂无尚未开始的可预约时段。</p>
+            </div>
             <div>
               <p class="section-label">开放时段</p>
               <div
@@ -375,14 +428,14 @@ onMounted(loadAvailability);
             <li>同一资源的重叠时段只能存在一个有效预约。</li>
             <li>教学占用、停用安排和开放时段外均不可预约。</li>
             <li>
-              讨论室须最晚在使用日期前一自然日提交，不套用15分钟签到期限。
+              所有场地仅支持当天预约。讨论室开始前可取消，不套用15分钟签到期限。
             </li>
             <li>
               座位预约成功后 30 分钟内确认到馆；教室和体育场地开始后 15
               分钟内签到。
             </li>
             <li>
-              目标流程：教室/体育正常结束由后台释放，座位刷卡离场立即释放；这些到离场接口及任务尚未接入本页。
+              图书馆座位可在预约详情模拟刷卡入场、离场；教室和体育到场后扫描对应地点码签到，预约结束后自动释放。
             </li>
           </ul>
         </div>

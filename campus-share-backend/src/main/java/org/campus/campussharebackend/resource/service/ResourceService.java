@@ -63,7 +63,7 @@ public class ResourceService {
         var blocks = resourceMapper.listBlocksForDate(resourceId, dayStart, dayEnd);
         var reservations = resourceMapper.listActiveReservationsForDate(resourceId, dayStart, dayEnd);
         LocalDateTime now = TimeFormats.now(clock);
-        var available = resource.isEnabled() && !("DISCUSSION_ROOM".equals(resource.getResourceType()) && !targetDate.isAfter(now.toLocalDate()))
+        var available = resource.isEnabled() && targetDate.equals(now.toLocalDate())
                 ? AvailabilityCalculator.free(openings, blocks, reservations, dayStart.isAfter(now) ? dayStart : now, dayEnd)
                 : List.<IntervalVO>of();
         return new AvailabilityVO(
@@ -92,7 +92,9 @@ public class ResourceService {
     @Transactional
     public ResourceVO create(ResourceSaveRequest request) {
         requireAdmin();
+        lockCatalog();
         ResourceRecord record = toRecord(request);
+        assertUnique(record);
         resourceMapper.insert(record);
         return ResourceVO.from(requireResource(record.getId()));
     }
@@ -100,16 +102,39 @@ public class ResourceService {
     @Transactional
     public ResourceVO update(long resourceId, ResourceSaveRequest request) {
         requireAdmin();
+        lockCatalog();
         ResourceRecord existing = resourceId <= 0 ? null : resourceMapper.lockById(resourceId);
         if (existing == null) throw new BusinessException(404, "RESOURCE_NOT_FOUND", "资源不存在");
         if (!existing.getResourceType().equals(request.resourceType()) && !lifecycleMapper.lockHistoryIds(resourceId).isEmpty()) {
             throw new BusinessException(409, "INVALID_STATE", "资源已有预约记录，不能变更资源类型；请新建对应资源");
         }
-        if (!request.enabled()) disableService.deactivateReservations(resourceId);
         ResourceRecord record = toRecord(request);
         record.setId(existing.getId());
+        // Existing duplicate data can still be renamed/disabled without manufacturing
+        // another identity conflict. Moving a unit to an occupied identity is always rejected.
+        if (!ResourceIdentity.of(record).equals(ResourceIdentity.of(existing))) assertUnique(record);
+        if (!request.enabled()) disableService.deactivateReservations(resourceId);
         resourceMapper.update(record);
         return ResourceVO.from(requireResource(resourceId));
+    }
+
+    private void lockCatalog() {
+        if (resourceMapper.lockCatalog() == null) {
+            throw new IllegalStateException("Missing resource catalog guard; apply migration 008");
+        }
+    }
+
+    private void assertUnique(ResourceRecord record) {
+        ResourceIdentity identity = ResourceIdentity.of(record);
+        if (!identity.valid()) throw new BusinessException(400, "INVALID_ARGUMENT", "请填写有效的位置、类型和编号标签");
+        // The catalog guard serializes create/update across server instances. FOR UPDATE is
+        // essential here: a normal SELECT could reuse a stale MySQL repeatable-read snapshot.
+        for (ResourceRecord other : resourceMapper.lockIdentityCandidates()) {
+            if (other.getId() != record.getId() && ResourceIdentity.of(other).equals(identity)) {
+                throw new BusinessException(409, "RESOURCE_DUPLICATE", "同一地点、类型和编号标签的资源已存在（#"
+                        + other.getId() + "），请编辑已有资源或更正编号");
+            }
+        }
     }
 
     private void requireAdmin() {

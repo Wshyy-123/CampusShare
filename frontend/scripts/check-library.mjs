@@ -14,6 +14,7 @@ const server = await createServer({
   define: { "import.meta.env.VITE_DATA_MODE": JSON.stringify("api") },
 });
 const originalFetch = globalThis.fetch;
+const originalNow = Date.now;
 try {
   const seatId = "9007199254740993",
     roomId = "9007199254740994";
@@ -44,6 +45,7 @@ try {
   const date = "2030-01-02",
     startTime = `${date}T10:00:00+08:00`,
     endTime = `${date}T11:00:00+08:00`;
+  Date.now = () => Date.parse(`${date}T08:00:00+08:00`);
   const booking = (id) => {
     const r = resources[id === seatBooking ? 0 : 1],
       status = statuses.get(id);
@@ -200,6 +202,7 @@ try {
     "PASS: library Session/CSRF contract, opaque IDs, explicit entry/exit controls, seat/classroom availability refresh, demo rejection and stale account isolation",
   );
 } finally {
+  Date.now = originalNow;
   globalThis.fetch = originalFetch;
   await server.close();
 }

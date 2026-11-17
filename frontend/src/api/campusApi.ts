@@ -5,6 +5,7 @@ import { reservationsApi } from "./reservations";
 import { HttpError, request } from "./http";
 import { schedulesApi } from "./schedules";
 import { localDate } from "../utils/presentation";
+import { hasStarted, isBookingDay } from "../utils/bookingTime";
 import type {
   Availability,
   PlaceScanPayload,
@@ -362,6 +363,8 @@ export function createApiCampusService(
       const start = lower + i;
       const end = start + 1;
       const available =
+        isBookingDay(date) &&
+        !hasStarted(date, start) &&
         value.resource.enabled &&
         value.availablePeriods.some(
           (v) =>
@@ -373,11 +376,15 @@ export function createApiCampusService(
         available,
         reason: !value.resource.enabled
           ? "场地已停用"
-          : available
-            ? "可预约"
-            : (blocks(resourceId, date).find(
-                (b) => start < b.end && end > b.start,
-              )?.label ?? "未开放或已过时"),
+          : !isBookingDay(date)
+            ? "仅限当天预约"
+            : hasStarted(date, start)
+              ? "已过期"
+              : available
+                ? "可预约"
+                : (blocks(resourceId, date).find(
+                    (b) => start < b.end && end > b.start,
+                  )?.label ?? "未开放或已过时"),
       };
     });
   }

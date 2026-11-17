@@ -18,3 +18,7 @@ frontend/.vite/
 .env
 .env.local
 *.local.yml
+
+# Python verification caches
+__pycache__/
+*.py[cod]

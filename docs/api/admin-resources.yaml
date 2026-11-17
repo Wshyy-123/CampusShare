@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: CampusShare XIA-2 资源维护接口
-  version: 0.2.0
+  version: 0.3.0
   description: |
     资源管理员维护 resource 表的入口。字段与 campus-share-backend 的
     resource 表一致；开放安排、教学占用和停用时段分别属于 XIA-3、XIA-14，
@@ -57,6 +57,7 @@ paths:
     post:
       operationId: createResource
       summary: 新增资源
+      description: 地点、类型与编号标签构成唯一预约单位，含停用资源；规范化空白、大小写和全半角后重复返回409 RESOURCE_DUPLICATE。
       requestBody:
         required: true
         content:
@@ -64,6 +65,8 @@ paths:
             schema:
               $ref: '#/components/schemas/ResourcePayload'
       responses:
+        '409':
+          description: RESOURCE_DUPLICATE（已有相同资源身份）或INVALID_STATE（历史/使用状态限制），本次保存不生效
         '200':
           description: 创建成功，data 为服务端返回的资源
           content:
@@ -87,7 +90,7 @@ paths:
     put:
       operationId: updateResource
       summary: 修改允许维护的资源信息
-      description: 整体更新名称、位置、类型、编号标签与启用状态；不修改开放安排和预约。
+      description: 整体更新名称、位置、类型、编号标签与启用状态；不修改开放安排和预约。身份变更为其他已有单位时返回409 RESOURCE_DUPLICATE；原身份不变的更新不重复新增资源，旧重复项可保留历史并停用处理。
       parameters:
         - name: resourceId
           in: path
@@ -102,6 +105,8 @@ paths:
             schema:
               $ref: '#/components/schemas/ResourcePayload'
       responses:
+        '409':
+          description: RESOURCE_DUPLICATE（已有相同资源身份）或INVALID_STATE（历史/使用状态限制），本次保存不生效
         '200':
           description: 更新成功，data 为服务端最新资源
           content:

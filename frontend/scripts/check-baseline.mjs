@@ -31,6 +31,7 @@ async function runtime(mode) {
 
 const server = await runtime("demo");
 const originalFetch = globalThis.fetch;
+const originalNow = Date.now;
 try {
   const { createDemoCampusService } = await server.ssrLoadModule(
     "/src/services/demoCampusService.ts",
@@ -39,7 +40,37 @@ try {
     "/src/utils/presentation.ts",
   );
   const date = localDate();
+  Date.now = () => Date.parse(`${date}T10:00:00+08:00`);
   const demo = createDemoCampusService();
+  assert.equal(
+    demo.slots("1", date).find((s) => s.start === 9).available,
+    false,
+    "past hour",
+  );
+  assert.equal(
+    await demo.reserve("1", date, 9),
+    false,
+    "past request rejected",
+  );
+  const { hasStarted } = await server.ssrLoadModule(
+    "/src/utils/bookingTime.ts",
+  );
+  assert.equal(hasStarted(date, 10, Date.now()), false, "exact start boundary");
+  assert.equal(
+    hasStarted(date, 10, Date.now() + 1),
+    true,
+    "one millisecond past start",
+  );
+  const tomorrow = localDate(new Date(Date.now() + 86400000));
+  assert.ok(
+    demo.slots("1", tomorrow).every((slot) => !slot.available),
+    "tomorrow is not bookable",
+  );
+  assert.equal(
+    await demo.reserve("1", tomorrow, 12),
+    false,
+    "future-day booking rejected in demo",
+  );
   assert.equal(demo.state.resources.length, 6);
   assert.deepEqual(demo.slots("2", ""), []);
   assert.equal(await demo.reserve("2", date, 9), false, "teaching conflict");
@@ -89,6 +120,17 @@ try {
     unitLabel: "A-99",
     enabled: true,
   });
+  await assert.rejects(
+    () =>
+      demo.saveResource(null, {
+        name: "换名称也不能重复",
+        location: " 图书馆一楼 ",
+        resourceType: "LIBRARY_SEAT",
+        unitLabel: "ａ－９９",
+        enabled: true,
+      }),
+    /已存在/,
+  );
   const managedPage = await demo.loadManagedResources({
     page: 1,
     size: 20,
@@ -204,6 +246,7 @@ try {
     console.log(`PASS: ${page.to} route and populated component rendering`);
   }
 } finally {
+  Date.now = originalNow;
   globalThis.fetch = originalFetch;
   await server.close();
 }

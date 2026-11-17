@@ -1,0 +1,10 @@
+{
+  "database": "MySQL 5.7.26",
+  "testDatabaseWasIsolated": true,
+  "total": 207,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "originalMysqlOnlyCasesExecuted": 3,
+  "evidence": "Maven test with JDBC MySQL driver and fresh isolated database; no demo database used"
+}

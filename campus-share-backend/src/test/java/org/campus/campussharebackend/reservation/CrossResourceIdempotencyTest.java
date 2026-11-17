@@ -11,12 +11,12 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import org.campus.campussharebackend.support.IntegrationTestBase;
+import org.campus.campussharebackend.support.BookingClockTestBase;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 
-class CrossResourceIdempotencyTest extends IntegrationTestBase {
+class CrossResourceIdempotencyTest extends BookingClockTestBase {
     @Test
     void sameUserAndRequestKeyCannotCreateTwoDifferentResources() throws Exception {
         try (Connection connection = jdbcTemplate.getDataSource().getConnection()) {

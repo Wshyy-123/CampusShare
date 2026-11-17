@@ -7,13 +7,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.util.Map;
 import java.time.LocalDateTime;
 import java.util.concurrent.*;
-import org.campus.campussharebackend.support.IntegrationTestBase;
+import org.campus.campussharebackend.support.BookingClockTestBase;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 
 @WithMockUser(username = "admin01", roles = "RESOURCE_ADMIN")
-class AdminConsistencyIntegrationTest extends IntegrationTestBase {
+class AdminConsistencyIntegrationTest extends BookingClockTestBase {
     @Test
     void sameNumericIdDoesNotCrossTablesOnUpdateOrDelete() throws Exception {
         jdbcTemplate.update("INSERT INTO resource_opening(id,resource_id,start_at,end_at) VALUES(9001,401,?,?)", tomorrowAt(20,0),tomorrowAt(21,0));
@@ -77,7 +77,7 @@ class AdminConsistencyIntegrationTest extends IntegrationTestBase {
     @Test
     void fullDeactivationWithInUseBookingRollsBackEverything() throws Exception {
         long future=booking("RESERVED");
-        var now=LocalDateTime.now(ZONE);
+        var now=LocalDateTime.now(bookingClock);
         long used=insertReservation(2,201,"using",now.minusMinutes(1),now.plusHours(1),"CHECKED_IN",null,now.minusMinutes(1));
         save(false,"BADMINTON").andExpect(status().isConflict());
         assertThat(state(future)).isEqualTo("RESERVED"); assertThat(state(used)).isEqualTo("CHECKED_IN");
